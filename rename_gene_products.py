@@ -70,7 +70,7 @@ parser.add_argument(
     '--identity',
     default=0.90,
     type=float,
-    help = 'Cutoff value for percent identity [default: 0.80]',
+    help = 'Cutoff value for percent identity [default: 0.90]',
     metavar=''
 )
 parser.add_argument(
@@ -78,7 +78,7 @@ parser.add_argument(
     '--align_length',
     default=0.90,
     type=float,
-    help = 'Cutoff value for percent alignment length / query cover [default: 0.75]',
+    help = 'Cutoff value for percent alignment length / query cover [default: 0.9]',
     metavar=''
 )
 parser.add_argument(
