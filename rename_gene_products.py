@@ -244,4 +244,4 @@ for g in filtered_genes:
 # creating 3 tab deliminted custom annotation output file
 with open(os.path.join(args.out,'{}_custom_annotations.txt'.format(args.out)), 'w') as outfile:
     for gene, product in final.items():
-        outfile.write(gene + '\t' + 'product' + '\t' + product + '\n')
+        outfile.write(gene + '\t' + 'note' + '\t' + product + '\n')
