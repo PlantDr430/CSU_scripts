@@ -5,9 +5,9 @@ Written by Stephen A. Wyka (2019)
 
 This script was written for use after a run of the annotate function from Funannotate. I noticed that
 many of the proteins were still classified as 'hypothetical proteins' even after functional annotation from 
-multiple programs. To help give product names to genes I decided to use the *.proteins.fasta and *.annotations.txt
+multiple programs. To help give product definitions to genes I decided to use the *.proteins.fasta and *.annotations.txt
 files from the Funannotate annotate_results/ directory to blast against a set of proteins from a reference annotated 
-genome(s) and pull gene product names from genes that had a >90% identify and >90% alignment length to my predicted 
+genome(s) and pull gene product definitions from genes that had a >90% identify and >90% alignment length to my predicted 
 genes. This creates a 3 tab deliminated custom annotation file which can then be used with Funannotate annotate with 
 the '-a' flag.
 
