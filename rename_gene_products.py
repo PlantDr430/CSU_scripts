@@ -194,7 +194,8 @@ os.system(''.join(MakeDB))
 
 # run blastp -outfmt 6 qseqid sseqid pident length slen
 print('Running blastp')
-run_blast = [BLASTP, ' -db ', blast_dir, database_name, ' -query ', args.query, ' -out ', misc_dir, 'blast_out.txt', 
+blast_output = os.path.abspath(os.path.join(misc_dir, 'blast_out.txt'))
+run_blast = [BLASTP, ' -db ', blast_dir, database_name, ' -query ', args.query, ' -out ', blast_output, 
     " -evalue 0.000001 -outfmt '6 qseqid sseqid pident length slen' -max_target_seqs 1 -max_hsps 1", ' -num_threads ', 
     str(args.cpus)]
 os.system(''.join(run_blast))
