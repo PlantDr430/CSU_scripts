@@ -19,7 +19,6 @@ import os, sys, re, argparse, inspect, shutil, textwrap
 from collections import OrderedDict, defaultdict
 rundir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 currentdir = os.getcwd()
-print(currentdir)
 parentdir = os.path.dirname(rundir)
 sys.path.insert(0, parentdir)
 
