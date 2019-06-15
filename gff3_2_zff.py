@@ -18,6 +18,8 @@ script.
 import os, sys, re, argparse, inspect, shutil, textwrap
 from collections import OrderedDict, defaultdict
 rundir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+currentdir = os.getcwd()
+print(currentdir)
 parentdir = os.path.dirname(rundir)
 sys.path.insert(0, parentdir)
 
@@ -57,24 +59,24 @@ args=parser.parse_args()
 
 # Making directory
 
-if not os.path.isdir(args.out+'_SNAP'):
-    os.makedirs(os.path.join(args.out+'_SNAP'))
+if not os.path.isdir(os.path.join(currentdir, args.out+'_SNAP')):
+    os.makedirs(os.path.join(currentdir, args.out+'_SNAP'))
 
 # Create file paths
 
-zff_dir = os.path.abspath(os.path.join(args.out+'_SNAP'))
+zff_dir = os.path.abspath(os.path.join(currentdir, args.out+'_SNAP'))
 snap_zff = os.path.abspath(os.path.join(zff_dir, args.out+'_genome.ann'))
 snap_dna = os.path.abspath(os.path.join(zff_dir, args.out+'_genome.dna'))
 
 # Checking arguments
 
 if args.input:
-    input_gff = os.path.abspath(os.path.join(rundir, args.input))
+    input_gff = os.path.abspath(os.path.join(currentdir, args.input))
 else:
     print('Error: Please provide a gff3 file, -in or --input')
 
 if args.genome:
-    input_genome = os.path.abspath(os.path.join(rundir, args.genome))
+    input_genome = os.path.abspath(os.path.join(currentdir, args.genome))
 else:
     print('Error: Please provide an associated genome.fasta file, -g or --genome')
 
