@@ -70,7 +70,7 @@ parser.add_argument(
     '--identity',
     default=0.90,
     type=float,
-    help = 'Cutoff value for percent identity [default: 0.80]',
+    help = 'Cutoff value for percent identity [default: 0.90]',
     metavar=''
 )
 parser.add_argument(
@@ -78,7 +78,7 @@ parser.add_argument(
     '--align_length',
     default=0.90,
     type=float,
-    help = 'Cutoff value for percent alignment length / query cover [default: 0.75]',
+    help = 'Cutoff value for percent alignment length / query cover [default: 0.90]',
     metavar=''
 )
 parser.add_argument(
@@ -93,12 +93,16 @@ parser.add_argument(
 )
 args=parser.parse_args()
 
+# Load functions
+
 def which_path(file_name):
     for path in os.environ["PATH"].split(os.pathsep):
         full_path = os.path.join(path, file_name)
         if os.path.exists(full_path) and os.access(full_path, os.X_OK):
             return full_path
     return None
+
+# Checking Arguments
 
 if args.query:
     query_file = args.query
@@ -152,7 +156,7 @@ try:
         for line in ref:
             if line.startswith('>'):
                 if not re.search(r'>(\S+) (.+) (\[.+])', line):
-                    raise()
+                    raise
                 else:
                     None
                 break
@@ -174,8 +178,11 @@ else:
     try:
         if which_path('makeblastdb'):
             MAKEBLASTDB = 'makeblastdb'
+        else:
+            raise
     except:
         print('makeblastdb not found, please provide path to executable in command with --MAKEBLASTDB_PATH')
+        sys.exit(1)
 
 if args.BLASTP_PATH:
     BLASTP = args.BLASTP_PATH
@@ -183,8 +190,11 @@ else:
     try:
         if which_path('blastp'):
             BLASTP = 'blastp'
+        else:
+            raise
     except:
         print('blastp not found, please provide path to executable in command with --BLASTP_PATH')
+        sys.exit(1)
 
 ### starting run ###
 # creating blast database
@@ -228,10 +238,14 @@ reference_dict = {}
 with open(args.database, 'r') as reference:
     for line in reference:
         if line.startswith('>'):
-            ref_gene = re.search(r'>(\S+) (.+) (\[.+])', line).group(1)
-            ref_product = re.search(r'>(\S+) (.+) (\[.+])', line).group(2)
+            if '|' in line:
+                ref_gene = re.search(r'>(\S+)([^|]*) (\d+\w) (OS=)', line).group(1)
+                ref_product = re.search(r'>(\S+)([^|]*) (\d+\w) (OS=)', line).group(2)
+            else:
+                ref_gene = re.search(r'>(\S+) (.+) (\[.+])', line).group(1)
+                ref_product = re.search(r'>(\S+) (.+) (\[.+])', line).group(2)
             if 'hypothetical protein' in ref_product or 'uncharacterized protein' in ref_product or \
-            'putative protein' in ref_product:
+            'putative protein' in ref_product or 'Uncharacterized protein' in ref_product:
                 continue
             else:
                 reference_dict[ref_gene] = ref_product
