@@ -132,8 +132,8 @@ if args.gff3:
     for gene in group_list:
         lengths = []
         for feature in gene:
-            if feature[2] == 'exon':
-                lengths.append(int(feature[4]) - int(feature[3]))
+            if feature[2] == 'CDS':
+                lengths.append(int(feature[4]) - int(feature[3]) + 1 - int(feature[7]))
         if sum(lengths) >= args.cutoff*3:
             cut_list.append(gene)
     with open(reformat_gff, 'w') as re_gff:
