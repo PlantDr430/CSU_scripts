@@ -3,7 +3,7 @@
 '''
 This script follows formulas put forth in Kislyuk et al. (2011) and outputs bootstrap 
 results and averaged overall results along with the fluidity graph over all genomes in 
-the dataset, with     jackknifed variances fit to power law curves.
+the dataset, with jackknifed variances fit to power law curves.
 '''
 
 import os, sys, re, argparse, random, itertools, statistics, math
@@ -43,9 +43,9 @@ parser.add_argument(
 parser.add_argument(
     '-b',
     '--bootstrap',
-    default=5,
+    default=10,
     type=int,
-    help = 'Bootsraps [default: 5]',
+    help = 'Bootsraps [default: 10]',
     metavar=''
 )
 args=parser.parse_args()
@@ -76,7 +76,6 @@ def get_pairs(sample_list, output_list):
             output_list.append([iso,''.join(random_iso)])
 
 def get_shared_single(pairs):
-    # para = {'Shared' : 0, 'Uk' : 0, 'Ul' : 0}
     for k,v in ortho_isolates.items():
         if pair[0] in v and pair[1] in v:
             para['Shared'] += 1
@@ -85,6 +84,9 @@ def get_shared_single(pairs):
         elif pair[0] not in v and pair[1] in v:
             para['Ul'] += 1
     return
+
+def powerlaw(x, m, c, c0):
+    return c*(x**m) + c0
 
 # create dictionary of gene clusters and isolates per cluster
 ortho_isolates = OrderedDict()
@@ -117,6 +119,7 @@ for b in range(0, args.bootstrap): # bootstrap runs
     jack_dict = {}
     variance_dict = {}
     for N in range(4, iso_num + 1): # main run
+        print(N)
         genome_sample_dict[N] = []
         fluidity_dict[N] = []
         jack_sample_dict[N-1] = []
@@ -124,17 +127,18 @@ for b in range(0, args.bootstrap): # bootstrap runs
         variance_dict[N] = []
         random_pairs = []
         jack_pairs = []
+        
         random_genome_sample = random.sample(iso_list, k=N) # random sample of genomes starting with a pool of 4
         get_pairs(random_genome_sample, random_pairs) # loop through random sample and create pairs of genomes
-        jackknife_sample = random.sample(random_genome_sample, k=N-1) # randomly remove 1 genome from random sample 
         
+        jackknife_sample = random.sample(random_genome_sample, k=N-1) # randomly remove 1 genome from random sample 
         get_pairs(jackknife_sample, jack_pairs) # loop through estimator sample and create pairs of genomes
 
         for pair in random_pairs: # for pairs loop through gene cluster dictionary and pull out num of shared / single
             para = {'Shared' : 0, 'Uk' : 0, 'Ul' : 0}
             get_shared_single(pair)
-            pair_fluidity = ((para['Uk'] + para['Ul'])/ # calculate fluidity per pair (Uk + Ul)/(Mk + Ml)
-            ((para['Uk'] + para['Shared']) + (para['Ul'] + para['Shared'])))
+
+            pair_fluidity = ((para['Uk'] + para['Ul'])/((para['Uk'] + para['Shared']) + (para['Ul'] + para['Shared']))) # calculate fluidity per pair (Uk + Ul)/(Mk + Ml)
             genome_sample_dict[N].append(pair_fluidity) # append all pair fluidities to dictionary for pool sample
         fluid = ((2/(N*(N-1)))*sum(genome_sample_dict[N])) # determine fluidity based on N genomes
         fluidity_dict[N].append((2/(N*(N-1)))*sum(genome_sample_dict[N]))
@@ -142,17 +146,17 @@ for b in range(0, args.bootstrap): # bootstrap runs
         for pair in jack_pairs: # for pairs loop through gene cluster dictionary and pull out num of shared / single
             para = {'Shared' : 0, 'Uk' : 0, 'Ul' : 0}
             get_shared_single(pair)
-            jack_fluidity = ((para['Uk'] + para['Ul'])/ # calculate fluidity per pair (Uk + Ul)/(Mk + Ml)
-            ((para['Uk'] + para['Shared']) + (para['Ul'] + para['Shared']))) # Make sure to reduce N by 1 genome
-            jack_sample_dict[N-1].append(jack_fluidity) # append all pair fluidities to dictionary for pool sample
+
+            jack_fluidity = ((para['Uk'] + para['Ul'])/((para['Uk'] + para['Shared']) + (para['Ul'] + para['Shared']))) # calculate fluidity per pair (Uk + Ul)/(Mk + Ml)
+            jack_sample_dict[N-1].append(jack_fluidity) # append all pair fluidities to dictionary for pool sample MAKE sure to reduce N by 1 genome
         fluid_i = ((2/(((N-1)-1)*((N-1)-2)))*sum(jack_sample_dict[N-1])) # calc fluid(i) for estimator sampled pairs
         fluid_i_mean = (1/(N-1))*fluid_i # calc fluid estimated mean from fluid(i)
         fluid_var = (((N-1)-1)/(N-1))*((fluid_i - fluid_i_mean)**2) # calc fluid variance 
         variance_dict[N].append(fluid_var)
 
-    average = statistics.mean([float(''.join(map(str,v))) for v in fluidity_dict.values()]) # get avg fluidity for all
+    average = statistics.mean([float(''.join(map(str,v))) for v in fluidity_dict.values()]) # get avg fluidity for all N genomes sampled
     var = [float(''.join(map(str,v))) for v in variance_dict.values()] # get variance for each N genome pool
-    bootstrap_avg[b].append(average) # add averages ro bootstrap dictionary
+    bootstrap_avg[b].append(average) # add averages to bootstrap dictionary
     bootstrap_var[b] = var # add variances to bootstrap dictionary
     boot_file = os.path.abspath(os.path.join(boot_dir, 'bootstrap_'+str(b)+'_results.txt'))
     output = []
@@ -163,8 +167,8 @@ for b in range(0, args.bootstrap): # bootstrap runs
         for line in output:
             boot_out.write('\t'.join(line) + '\n')
 
-fluid_fig = os.path.abspath(os.path.join(result_dir, 'Fluidity_chart.png'))
-fig_results = os.path.abspath(os.path.join(result_dir, 'Fluidity.txt'))
+fluid_results = os.path.abspath(os.path.join(result_dir, 'Pangenome_fluidity.txt'))
+fluid_fig = os.path.abspath(os.path.join(result_dir, 'Pangenome_fluidity.png'))
 overall_avg = statistics.mean([float(''.join(map(str,v))) for v in bootstrap_avg.values()]) # get avg across all boots
 overall_data = np.array([overall_avg for i in range(4, iso_num + 1)]) # create y-value for all x-labels
 var_list = [v for v in bootstrap_var.values()] # turn bootsrap varince dict into list
@@ -175,25 +179,28 @@ x_labels = np.array([i for i in range(4, iso_num + 1)]) # get x-axis label
 var_down = np.array([(overall_avg - v) for v in final_var]) # create array for y-values + variance
 var_up = np.array([(overall_avg + v) for v in final_var]) # create array for y-values - variance
 
-def powerlaw(x, m, c, c0):
-    return c0 + x**m * c
-
 popt_down, pcov_down = curve_fit(powerlaw, x_labels, var_down, p0 = np.asarray([-1,iso_num**5,0])) # power law var_down
 popt_up, pcov_up = curve_fit(powerlaw, x_labels, var_up, p0 = np.asarray([-1,iso_num**5,0])) # power law var_up
 
 fig, ax = plt.subplots()
+ax.set_axisbelow(True)
+plt.minorticks_on()
+plt.grid(which='minor', axis='y', color='white', linestyle='--', alpha=0.3)
+ax.yaxis.grid(True, linestyle='-', linewidth='1', which='major', color='white')
+ax.xaxis.grid(True, linestyle='-', linewidth='1', which='major', color='white', alpha=0.5)
+ax.tick_params(axis='x', which='minor', bottom=False)
+ax.set_facecolor('gainsboro')
 plt.plot(x_labels, overall_data, ls='--', lw=1, color='black') # plot y-values of fluidity
-plt.fill_between(x_labels, powerlaw(x_labels, *popt_up), powerlaw(x_labels, *popt_down), facecolor='cyan') # plot power
+plt.fill_between(x_labels, powerlaw(x_labels, *popt_up), powerlaw(x_labels, *popt_down), facecolor='blue', alpha=0.6)
 plt.xticks(np.arange(x_labels[0], x_labels[len(x_labels)-1]+1, 1.0)) # make sure x interval is 1
 plt.xlim(x_labels[0], x_labels[len(x_labels)-1]) # adjust x limit so it starts with 4 at 0
 plt.ylim((min(overall_data) - min(overall_data)*0.25), (max(overall_data) + max(overall_data)*0.25))
 plt.xlabel('Genomes sampled')
 plt.ylabel('Fluidity, '+u'\u03C6')
 plt.tight_layout()
-# plt.show()
 plt.savefig(fluid_fig)
 
-with open(fig_results, 'w') as results:
+with open(fluid_results, 'w') as results:
     results.write('Genomes_Sampled\tAvg_Fluidity\tAvg_Variance\tPower_up\tPower_down\n')
     r_out = []
     for i in range(0, iso_num-3):
