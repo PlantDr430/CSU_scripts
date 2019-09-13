@@ -273,7 +273,7 @@ with open(fluid_results, 'w') as results:
     results.write('Genomes_Sampled\tFluidity\tVariance\tStderr\tPower_top\tPower_bottom\n')
     r_out = []
     for i in range(0, iso_num-2):
-        r_out.append([str(i+4), str(fluidity_dict[i+4][0]), str(combined_var[i]), str(combined_stdev[i]),
+        r_out.append([str(i+3), str(fluidity_dict[i+3][0]), str(combined_var[i]), str(combined_stdev[i]),
         str(powerlaw(x_labels, *popt_t)[i]), str(powerlaw(x_labels, *popt_b)[i])])
     for line in r_out:
         results.write('\t'.join(line) + '\n')
