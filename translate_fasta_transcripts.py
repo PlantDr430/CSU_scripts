@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-import os, sys, argparse, textwrap
+import os, sys, argparse, textwrap, re
 from collections import defaultdict
 
 rundir = os.getcwd()
@@ -90,7 +90,18 @@ else:
     print('Something went wrong. The number of genes in new fasta file did not ',\
     'equal the number of genes in the old fasta file')
 
+# try to sort new fasta in best possible way
+if re.search(r'(\w+_\d+)', next(iter(new_fasta))) and ' ' not in next(iter(new_fasta)): # locus tag format
+    if '-' in next(iter(new_fasta)): # locus_tag with -mRNA potentially
+        sort_new = sorted(new_fasta.items(), key=lambda k: int(k[0].split('_')[1].split('-')[0]))
+    else:
+        sort_new = sorted(new_fasta.items(), key=lambda k: int(k[0].split('_')[1]))
+elif re.search(r'(\w+\|\w+\|\w+)', next(iter(new_fasta))): # NCBI/ENA format
+    sort_new = sorted(new_fasta.items(), key=lambda k: k[0].split('|')[1])
+else:
+    sort_new = sorted(new_fasta.items()) # last resort
+
 with open(output_fasta, 'w') as out_fasta:
-    for k,v in sorted(new_fasta.items(), key=lambda k: int(k[0].split('_')[1])):
+    for k,v in sort_new:
         out_fasta.write('>' + k + '\n')
         out_fasta.write(textwrap.fill(''.join(v),width=80) + '\n')
