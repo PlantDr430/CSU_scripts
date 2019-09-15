@@ -3,28 +3,30 @@
 '''
 This script follows formulas put forth in Kislyuk et al. (2011) to calculate genome 
 fluidity of a pangenome dataset. Variance and standard deviation are estimated as total 
-variance by averaging the variance calculated from bootstrapping samples of N genomes 
+variance containing the variance calculated from bootstrapping samples of N genomes 
 from the total pool of genomes and the variance calculated by the jackknife estimator of 
 N-1 for each sample of N genomes. Results are a text file of fluidity, variance, and 
 standard deviation for all N genome samples and a figure of total genome pool fluidity 
 with shaded regions showing standard deviations with a power law regression fit.
 
 Warnings!
-1. This will only work if you have at least 5 isolates to make up your pangenome.
-2. If you have 5 isolates your graph will probably not look pretty as it's difficult 
+1. This will only work if you have at least 4 isolates to make up your pangenome.
+2. If you have 4-5 isolates your graph will probably not look pretty as it's difficult 
 to fit with such a low number of samples. You could try reducing the bootstrapping.
 3. If you get OptimizeWarning, you can disregard. It is just a warning and curves were 
 correctly fit to the data.
+4. If you have greater than 40 isolates in a run there may be a problem with the curve 
+of the figure. Sometimes it appears and then a re-run it works fine. Still looking into 
+what is causing it.
 '''
 
-import os, sys, re, argparse, random, itertools, scipy
+import os, sys, re, argparse, random, itertools, scipy, warnings
 from collections import OrderedDict
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 from scipy.optimize import differential_evolution
-import warnings
 
 rundir = os.getcwd()
 
@@ -33,7 +35,7 @@ class MyFormatter(argparse.RawTextHelpFormatter):
         super(MyFormatter, self).__init__(prog, max_help_position=48)
 parser = argparse.ArgumentParser(
     usage='./%(prog)s [options] -i orthogroups -o output_folder',
-    description = '''    Performs multiple simulations and calculates genome fluidity 
+    description = '''    Performs multiple bootstraps and calculates genome fluidity 
     from a pangenome dataset.''',
     
     epilog = """Written by Stephen A. Wyka (2019)""",
@@ -59,6 +61,12 @@ parser.add_argument(
     default=25,
     type=int,
     help = 'Number of bootstraps to run [default: 25]',
+    metavar=''
+)
+parser.add_argument(
+    '-p',
+    '--prefix',
+    help = 'Prefix to append to the result files (such as Genus, species, etc.)',
     metavar=''
 )
 args=parser.parse_args()
@@ -98,17 +106,17 @@ def get_shared_single(pairs):
 def powerlaw(x, c, m, c0):
     return c*(x**m) + c0
 
-def sumOfSquaredError(parameterTuple):
+def sumOfSquaredError(parameterTuple, x_values, y_curve_values):
     warnings.filterwarnings("ignore") # do not print warnings by genetic algorithm
-    val = powerlaw(x_labels, *parameterTuple)
-    return np.sum((err_top - val) ** 2.0)
+    val = powerlaw(x_values, *parameterTuple)
+    return np.sum((y_curve_values - val) ** 2.0)
 
-def generate_Initial_Parameters(level):
+def generate_Initial_Parameters(x_values, y_curve_values,):
     # min and max used for bounds
     maxX = max(x_labels)
     minX = min(x_labels)
-    maxY = max(level)
-    minY = min(level)
+    maxY = max(y_curve_values)
+    minY = min(y_curve_values)
     maxXY = max(maxX, maxY)
 
     parameterBounds = []
@@ -117,10 +125,11 @@ def generate_Initial_Parameters(level):
     parameterBounds.append([-maxXY, maxXY]) # seach bounds for c
 
     # "seed" the numpy random number generator for repeatable results
-    result = differential_evolution(sumOfSquaredError, parameterBounds, seed=3)
+    result = differential_evolution(sumOfSquaredError, parameterBounds, args=(x_values,y_curve_values), seed=3)
     return result.x
 
 # create dictionary of gene clusters and isolates per cluster
+print('Creating dictionaries and matrices')
 ortho_isolates = OrderedDict()
 with open(input_file, 'r') as infile:
     ortho_list = [item.strip() for item in sorted(infile)]
@@ -157,6 +166,7 @@ boot_dict = {}
 jack_boot_var = {}
 jack_boot_dev = {}
 for b in range(0, args.bootstraps): # bootstraps
+    print('Running bootstrap {} out of {}'.format(b,args.bootstraps))
     genome_sample_dict = {}
     fluidity_dict = {}
     jack_sample_dict = {}
@@ -217,7 +227,6 @@ final_jack_var = np.array([np.mean(x) for x in jack_var])
 jack_dev = np.array([v for v in jack_boot_dev.values()]).T.tolist()
 final_jack_dev = np.array([np.mean(x) for x in jack_dev])
 
-
 boot_var = []
 boot_stdev = []
 for v in range(3, iso_num + 1):
@@ -229,8 +238,12 @@ combined_var = np.array([(boot_var[x] + final_jack_var[x]) for x in range(0, iso
 combined_stdev = np.array([(boot_stdev[x] + final_jack_dev[x]) for x in range(0, iso_num-2)])
 
 # create files paths and get fluidty data and x-axis labels
-fluid_results = os.path.abspath(os.path.join(result_dir, 'Pangenome_fluidity.txt'))
-fluid_fig = os.path.abspath(os.path.join(result_dir, 'Pangenome_fluidity.png'))
+if args.prefix:
+    fluid_results = os.path.abspath(os.path.join(result_dir, args.prefix+'_pangenome_fluidity.txt'))
+    fluid_fig = os.path.abspath(os.path.join(result_dir, args.prefix+'_pangenome_fluidity.png'))
+else:
+    fluid_results = os.path.abspath(os.path.join(result_dir, 'Pangenome_fluidity.txt'))
+    fluid_fig = os.path.abspath(os.path.join(result_dir, 'Pangenome_fluidity.png'))
 best_fluidity = fluidity_dict[iso_num][0] # get fludity calculated from all genomes in dataset
 overall_data = np.array([best_fluidity for i in range(3, iso_num + 1)]) # create y-value for all x_labels
 x_labels = np.array([i for i in range(3, iso_num + 1)]) # get x-axis label
@@ -240,8 +253,8 @@ err_bottom = np.array([(best_fluidity - v) for v in combined_stdev])
 err_top = np.array([(best_fluidity + v) for v in combined_stdev])
 
 # generate initial parameter values
-geneticParameters_top = generate_Initial_Parameters(err_top)
-geneticParameters_bottom = generate_Initial_Parameters(err_bottom)
+geneticParameters_top = generate_Initial_Parameters(x_labels, err_top)
+geneticParameters_bottom = generate_Initial_Parameters(x_labels, err_bottom)
 
 # get best fit model parameters. Used large maxfev to make it robust as fitting is 
 # difficult with ~5 genomes, even with generated initial values. Since we are setting 
