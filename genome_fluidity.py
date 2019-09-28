@@ -74,7 +74,7 @@ parser.add_argument(
     metavar=''
 )
 parser.add_argument(
-    '--perm_off',
+    '--max_off',
     action='store_true',
     help = 'Turn off the max subsamples. This will cause the script sample ALL possible combinations'\
     'for N genomes',
@@ -206,14 +206,17 @@ def flatten(lis):
              yield item
 
 def exponential(x, a, b, c):
+    return a * np.exp(b * x) + c
+
+def neg_exponential(x, a, b, c):
     return a * np.exp(-b * x) + c
 
-def sumOfSquaredError(parameterTuple, x_values, y_curve_values):
+def sumOfSquaredError(parameterTuple, x_values, y_curve_values, func):
     warnings.filterwarnings("ignore") # do not print warnings by genetic algorithm
-    val = exponential(x_values, *parameterTuple)
+    val = func(x_values, *parameterTuple)
     return np.sum((y_curve_values - val) ** 2.0)
 
-def generate_Initial_Parameters(x_values, y_curve_values,):
+def generate_Initial_Parameters(x_values, y_curve_values, func):
     # min and max used for bounds
     maxX = max(x_values)
     minX = min(x_values)
@@ -226,7 +229,7 @@ def generate_Initial_Parameters(x_values, y_curve_values,):
     parameterBounds.append([-maxXY, maxXY]) # seach bounds for b
     parameterBounds.append([-maxXY, maxXY]) # seach bounds for c
     # "seed" the numpy random number generator for repeatable results
-    result = differential_evolution(sumOfSquaredError, parameterBounds, args=(x_values,y_curve_values), seed=3)
+    result = differential_evolution(sumOfSquaredError, parameterBounds, args=(x_values,y_curve_values, func), seed=3)
     return result.x
 
 def create_fluidity_results(figure_output, results_output):
@@ -242,11 +245,28 @@ def create_fluidity_results(figure_output, results_output):
     x_labels = np.array([i for i in range(3, iso_num + 1)])
     stderr_bottom = np.array([(pan_fluidity - v) for v in total_stderr])
     stderr_top = np.array([(pan_fluidity + v) for v in total_stderr])
-    geneticParameters_top = generate_Initial_Parameters(x_labels, stderr_top)
-    geneticParameters_bottom = generate_Initial_Parameters(x_labels, stderr_bottom)
-    popt_t, pcov = curve_fit(exponential, x_labels, stderr_top, geneticParameters_top, maxfev=10000)
-    popt_b, pcov = curve_fit(exponential, x_labels, stderr_bottom, geneticParameters_bottom, maxfev=10000)
     fig, ax = plt.subplots()
+    try: # Still got problems sometimes with fitting curves, this temporary solution seems to be working
+        geneticParameters_top = generate_Initial_Parameters(x_labels, stderr_top, exponential)
+        geneticParameters_bottom = generate_Initial_Parameters(x_labels, stderr_bottom, exponential)
+        popt_t, pcov = curve_fit(exponential, x_labels, stderr_top, geneticParameters_top, maxfev=10000)
+        popt_b, pcov = curve_fit(exponential, x_labels, stderr_bottom, geneticParameters_bottom, maxfev=10000)
+        if len(set(exponential(x_labels, *popt_t))) > 3 and len(set(exponential(x_labels, *popt_b))) > 3:
+            plt.fill_between(x_labels, exponential(x_labels, *popt_t), exponential(x_labels, *popt_b), facecolor='blue', alpha=0.6)
+        if len(set(exponential(x_labels, *popt_t))) <= 3:
+            geneticParameters_top = generate_Initial_Parameters(x_labels, stderr_top, neg_exponential)
+            popt_t, pcov = curve_fit(neg_exponential, x_labels, stderr_top, geneticParameters_top, maxfev=10000)
+            plt.fill_between(x_labels, neg_exponential(x_labels, *popt_t), exponential(x_labels, *popt_b), facecolor='blue', alpha=0.6)
+        else:
+            pass
+        if len(set(exponential(x_labels, *popt_b))) <= 3:
+            geneticParameters_bottom = generate_Initial_Parameters(x_labels, stderr_bottom, neg_exponential)
+            popt_b, pcov = curve_fit(neg_exponential, x_labels, stderr_bottom, geneticParameters_bottom, maxfev=10000)
+            plt.fill_between(x_labels, exponential(x_labels, *popt_t), neg_exponential(x_labels, *popt_b), facecolor='blue', alpha=0.6)
+        else:
+            pass
+    except:
+        pass
     ax.set_axisbelow(True)
     plt.minorticks_on()
     plt.grid(which='minor', axis='y', color='white', linestyle='--', alpha=0.3)
@@ -255,7 +275,6 @@ def create_fluidity_results(figure_output, results_output):
     ax.tick_params(axis='x', which='minor', bottom=False)
     ax.set_facecolor('gainsboro')
     plt.plot(x_labels, y_fluidity_values, ls='--', lw=1, color='black') # plot y-values of fluidity
-    plt.fill_between(x_labels, exponential(x_labels, *popt_t), exponential(x_labels, *popt_b), facecolor='blue', alpha=0.6)
     plt.xticks(np.arange(x_labels[0], x_labels[len(x_labels)-1]+1, 1.0)) # make sure x interval is 1
     plt.xlim(x_labels[0], x_labels[len(x_labels)-1]) # adjust x limit so it starts with 3 at 0
     max_y = max(stderr_top)
