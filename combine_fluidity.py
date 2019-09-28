@@ -57,7 +57,7 @@ parser.add_argument(
     '--legend',
     default = 6,
     type=int,
-    help = 'Size of legend [default = 8]',
+    help = 'Size of legend [default = 6]',
     metavar=''
 )
 args=parser.parse_args()
@@ -81,8 +81,8 @@ def parse_input_files(input_file):
     z_test_dict[legend_name] = [fluid_all,genome_count,stdev]
     fluid_data = np.array([fluid_all for x in range(0,len(df['Fluidity']))])
     data.append((x_labels, fluid_data))
-    curve_top.append(np.array(df['Power_top']))
-    curve_bottom.append(np.array(df['Power_bottom']))
+    curve_top.append(np.array(df['Exponential_top']))
+    curve_bottom.append(np.array(df['Exponential_bottom']))
 
 def create_fluidity_figure(output_file):
     fig, ax = plt.subplots(figsize=(args.figsize[0],args.figsize[1]), dpi=args.dpi)
@@ -90,6 +90,7 @@ def create_fluidity_figure(output_file):
     for i in range(0, len(data)):
         num_genomes = str(data[i][0][-1])
         plt.plot(data[i][0], data[i][1], ls='--', lw=1.5, color=colors[i], alpha=1, label='{}'.format(legend_labels[i]+' ('+num_genomes+')'))
+        # plt.plot(data[i][0], data[i][1], ls='--', lw=1.5, color=colors[i], alpha=1, label='Species_'+str(i+1))
         plt.fill_between(data[i][0], curve_top[i], curve_bottom[i], facecolor=colors[i], alpha=0.25)
     ax.set_facecolor('lightgrey')
     ax.set_axisbelow(True)
@@ -99,7 +100,7 @@ def create_fluidity_figure(output_file):
     ax.grid(which='major', linestyle='-', linewidth='1', color='white')
     plt.xticks(np.arange(3, max(x_len) + 1, 1.0))
     plt.xlim(3, max(x_len))
-    plt.xlabel('Genomes sampled')
+    plt.xlabel('Number of genomes sampled')
     plt.ylabel('Fluidity, '+u'\u03C6')
     plt.legend(framealpha=1.0, prop={'size': args.legend})
     plt.tight_layout()
@@ -123,7 +124,7 @@ def determine_significance_matrix(output_file):
             line_lists.append(short_pval) # create list of all pvalues for isolate i v. others
         result_matrix.append([sorted_dict[i][0]] + line_lists) # append all pvalues for isolate i to matrix
     labels = [sorted_dict[x][0] for x in range(0, len(sorted_dict))] # get headers and index for dataframe
-    with open(output_file, 'w') as outfile:
+    with open(output_file, 'w') as outfile: # would love to print out a table.png but matplotlib tables aren't good
         report = csv.writer(outfile, delimiter = '\t', lineterminator='\n')
         report.writerow([''] + labels)
         for i in range(0, len(sorted_dict)):
