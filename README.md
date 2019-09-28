@@ -1,5 +1,5 @@
 # CSU_scripts
-####Scripts created at CSU as a PhD student for genomic annotations and comparisons.
+#### Scripts created at CSU as a PhD student for genomic annotations and comparisons.
 
 ## Examples of figure output from specified scripts.
 
