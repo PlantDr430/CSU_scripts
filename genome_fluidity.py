@@ -253,16 +253,22 @@ def create_fluidity_results(figure_output, results_output):
         popt_b, pcov = curve_fit(exponential, x_labels, stderr_bottom, geneticParameters_bottom, maxfev=10000)
         if len(set(exponential(x_labels, *popt_t))) > 3 and len(set(exponential(x_labels, *popt_b))) > 3:
             plt.fill_between(x_labels, exponential(x_labels, *popt_t), exponential(x_labels, *popt_b), facecolor='blue', alpha=0.6)
+            top_curve = exponential(x_labels, *popt_t)
+            bottom_curve = exponential(x_labels, *popt_b)
         if len(set(exponential(x_labels, *popt_t))) <= 3:
             geneticParameters_top = generate_Initial_Parameters(x_labels, stderr_top, neg_exponential)
             popt_t, pcov = curve_fit(neg_exponential, x_labels, stderr_top, geneticParameters_top, maxfev=10000)
             plt.fill_between(x_labels, neg_exponential(x_labels, *popt_t), exponential(x_labels, *popt_b), facecolor='blue', alpha=0.6)
+            top_curve = neg_exponential(x_labels, *popt_t)
+            bottom_curve = exponential(x_labels, *popt_b)
         else:
             pass
         if len(set(exponential(x_labels, *popt_b))) <= 3:
             geneticParameters_bottom = generate_Initial_Parameters(x_labels, stderr_bottom, neg_exponential)
             popt_b, pcov = curve_fit(neg_exponential, x_labels, stderr_bottom, geneticParameters_bottom, maxfev=10000)
             plt.fill_between(x_labels, exponential(x_labels, *popt_t), neg_exponential(x_labels, *popt_b), facecolor='blue', alpha=0.6)
+            top_curve = exponential(x_labels, *popt_t)
+            bottom_curve = neg_exponential(x_labels, *popt_b)
         else:
             pass
     except:
@@ -291,7 +297,7 @@ def create_fluidity_results(figure_output, results_output):
         r_out = []
         for i in range(0, iso_num-2):
             r_out.append([str(i+3), str(pan_fluidity), str(total_variance[i]), str(total_stderr[i]), 
-            str(exponential(x_labels, *popt_t)[i]), str(exponential(x_labels, *popt_b)[i])])
+            str(top_curve[i]), str(bottom_curve[i])])
         for line in r_out:
             results.write('\t'.join(line) + '\n')
 
