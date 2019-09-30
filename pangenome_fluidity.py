@@ -26,8 +26,9 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from multiprocessing import Pool
-from itertools import combinations, product
-from collections import OrderedDict, Iterable
+from itertools import combinations
+from collections import OrderedDict
+from collections.abc import Iterable
 from scipy.optimize import curve_fit, differential_evolution
 
 rundir = os.getcwd()
@@ -214,13 +215,13 @@ def genome_subsamples_fluidities(perm_list):
         sub_fluid_dict[N]=list(flatten(sub_fluid_dict[N]))
     return sub_fluid_dict
 
-def flatten(lis): # need to re-write as Iterable is getting dropped
-     for item in lis:
-         if isinstance(item, Iterable) and not isinstance(item, str):
-             for x in flatten(item):
-                 yield x
-         else:
-             yield item
+def flatten(lis):
+    for item in lis:
+     if isinstance(item, Iterable) and not isinstance(item, str):
+         for x in flatten(item):
+             yield x
+     else:
+         yield item
 
 def exponential(x, a, b, c):
     return a * np.exp(b * x) + c
@@ -253,9 +254,9 @@ def create_fluidity_results(figure_output, results_output):
     total_variance = []
     for i in range(3, iso_num + 1):
         if i in permutation_list:
-            total_variance.append(np.var(sub_fluid_dict[i], ddof = 1) + pan_varaince)
+            total_variance.append(np.var(sub_fluid_dict[i], ddof = 1) + pan_variance)
         else:
-            total_variance.append(np.var(sub_fluid_dict[i]) + pan_varaince)
+            total_variance.append(np.var(sub_fluid_dict[i]) + pan_variance)
     total_variance = np.array(total_variance)
     total_stderr = np.array([x**(1/2) for x in total_variance])
     y_fluidity_values = np.array([pan_fluidity for i in range(3, iso_num + 1)])
@@ -325,7 +326,7 @@ if __name__ == "__main__":
     pair_dict = create_pair_dictionary(ortho_dict)
     pan_results = compute_fluidity_all_genomes()
     pan_fluidity = pan_results[0]
-    pan_varaince = pan_results[1]
+    pan_variance = pan_results[1]
     permutation_list = []
     sub_fluid_dict = genome_subsamples_fluidities(permutation_list)
     create_fluidity_results(fluid_fig, fluid_results)
