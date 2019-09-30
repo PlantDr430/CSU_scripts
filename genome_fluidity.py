@@ -147,22 +147,33 @@ def create_pair_dictionary(ortho_dictionary):
     return pair_dict
 
 def compute_fluidity_all_genomes():
+    '''
+    Computes the fluidity and variance for the pangenome in question from the max number 
+    of genomes in the pangenome.
+    fluidity = 
+    fluidity_i =
+    fluidity_variance = 
+    '''
     N = iso_num
-    fluidity_list = [ratio for ratio in pair_dict.values()]
-    pangenome_fluidity = (2/(N*(N-1)))*sum(fluidity_list)
-    jack_samples = list(combinations(iso_list, N - 1))
+    fluidity_list = [ratio for ratio in pair_dict.values()] # list of ratios 
+    pangenome_fluidity = (2/(N*(N-1)))*sum(fluidity_list) # get fluidity from average of all ratios
+    jack_samples = list(combinations(iso_list, N - 1)) # get list of all combos of N-1 from max num of genomes
     fluidity_i_list = []
     for sample in jack_samples:
-        jack_pairs = tuple(combinations(sample,2))
-        jack_sample_fluidity = [pair_dict[tuple(sorted(p))] for p in jack_pairs]
-        fluidity_i = (2/((N-1)*(N-2)))*sum(jack_sample_fluidity)
+        jack_pairs = tuple(combinations(sample,2)) # get all pairs from current jackknife sample
+        jack_sample_fluidity = [pair_dict[tuple(sorted(p))] for p in jack_pairs] # get ratios from pair_dict
+        fluidity_i = (2/((N-1)*(N-2)))*sum(jack_sample_fluidity) # calculate fluidity_i 
         fluidity_i_list.append(fluidity_i)
-    fluidity_i_mean = np.mean(fluidity_i_list)
-    fluidity_variance = ((N-1)/N)*sum([(i-fluidity_i_mean)**2 for i in fluidity_i_list])
+    fluidity_i_mean = np.mean(fluidity_i_list) # calculate fluidity_i_mean from all fluidity_i's
+    fluidity_variance = ((N-1)/N)*sum([(i-fluidity_i_mean)**2 for i in fluidity_i_list]) # calculate variance
     return pangenome_fluidity, fluidity_variance
 
 def subsample_multiprocess(combo_list):
-    N = len(combo_list[0])
+    '''
+    Takes portions of the full combo_list and runs them on separate threads for faster processing. 
+    Calcualtes fluidity for each sample and returns list of fluidities.
+    '''
+    N = len(combo_list[0]) # get N from number of genomes present
     sample_process_list = []
     for sample in combo_list:
         pairs = tuple(combinations(sample,2))
@@ -172,6 +183,12 @@ def subsample_multiprocess(combo_list):
     return sample_process_list
 
 def genome_subsamples_fluidities(perm_list):
+    '''
+    Compute fluidities from all possible combinations of genomes from 3 to N randomly sampled genomes 
+    (N is the max number of gneomes in sample, so only sampled once). Has a cut off of max subsamples 
+    at which point variances are calcualted as sample variances (n-1) instead of full population 
+    variances.
+    '''
     sub_fluid_dict = {} # {N genomes sampled : [list of fluidities from subsamples]}
     for N in range(3, iso_num + 1):
         sub_fluid_dict[N] = []
@@ -197,7 +214,7 @@ def genome_subsamples_fluidities(perm_list):
         sub_fluid_dict[N]=list(flatten(sub_fluid_dict[N]))
     return sub_fluid_dict
 
-def flatten(lis):
+def flatten(lis): # need to re-write as Iterable is getting dropped
      for item in lis:
          if isinstance(item, Iterable) and not isinstance(item, str):
              for x in flatten(item):
