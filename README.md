@@ -10,7 +10,7 @@ Takes a Gff3 or Bed file to produce a density plot map of intergenic regions len
 
 
 ### genome_fluidity.py
-Takes an orthogroups.txt file from progrmas such as Orthofinder, OrthoMCL, SiLiX and calcualtes genome fluidity of a group of at least 5 genomes. Plots genome fluidity and standard error regions fit to an exponential regression curve y = Ae^Bx + C. Also reports a text file to be used with combine_fluidity.py.
+Takes an orthogroups.txt file from programs such as Orthofinder, OrthoMCL, SiLiX and calculates genome fluidity of a group of at least 5 genomes. Plots genome fluidity and standard error regions fit to an exponential regression curve y = Ae^Bx + C. Also reports a text file to be used with combine_fluidity.py.
 
 ![Single_fluidity](https://github.com/PlantDr430/images/blob/master/Pangenome_fluidity.png)
 
