@@ -18,3 +18,8 @@ Takes an orthogroups.txt file from programs such as Orthofinder, OrthoMCL, SiLiX
 Takes multiple text output files from genome_fluidity.py and merges them into one graph. Also report tab-deliminated file of each v. each p-values calculated from a two sample two-sided z-test. Note: This is mock data.
 
 ![Combined_fluidity](https://github.com/PlantDr430/images/blob/master/Example_combined_fluidity.png)
+
+### TE_divergence_landscape.py
+Takes RepeatMasker .out file and create a TE landscape based on percent divergence and sequence lengths of transposable element fragments. Note: This script does not have a lot of flexibility from the command line as it was mainly used for personal figure creation, however, the script should be simple enough to follow and alter it for your specific interests (i.e. TE classes to show, etc).
+
+![TE_landscape](https://github.com/PlantDr430/images/blob/master/TE_divergence_landscape.png)
