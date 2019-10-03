@@ -96,8 +96,6 @@ def create_stacked_bar():
     plt.bar(sine_x, sine_y, edgecolor='black',width=1, color='orange', label='SINE')
     rc_x = np.array([x for x in rc_dict.keys()])
     rc_y = np.array([y for y in rc_dict.values()])
-    print(rc_x)
-    print(rc_y)
     plt.bar(rc_x, rc_y, edgecolor='black',width=1, color='cyan', label='RC', 
             bottom=sine_y)
     line_x = np.array([x for x in line_dict.keys()])
