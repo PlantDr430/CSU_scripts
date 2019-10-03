@@ -6,7 +6,7 @@ examine the TE landscape. Can add flexibility if requested, however, the script 
 be pretty simple to follow and easy to alter to tailor it for your specific interests. 
 '''
 
-import os, sys, argparse
+import os, sys, argparse, inspect
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -37,19 +37,20 @@ parser.add_argument(
     required = True,
     help = 'Base name of output figure file (will automatically append .png)',
     metavar=''
-)parser.add_argument(
+)
+parser.add_argument(
     '-xlim',
     '--xlimits',
     nargs = '+',
     default = [-0.5, 50],
     type=float,
-    help = 'X-axis data range limits [default: -0.5 50]',
+    help = 'X-axis data range [default: -0.5 50]',
     metavar=''
 )
-)parser.add_argument(
-    '-t',
-    '--title',
-    help = "Title to be placed above figure, i.e. Species name.(use 'quotes if using spaces')",
+parser.add_argument(
+    '-spec',
+    '--species',
+    help = 'Species name to add as title over figure (use quotes if using spaces)',
     metavar=''
 )
 args=parser.parse_args()
@@ -62,6 +63,7 @@ def parse_repeatmasker_output(input_file):
     dna_dict = {i: 0 for i in range(0,100)}
     line_dict = {i: 0 for i in range(0,100)}
     sine_dict = {i: 0 for i in range(0,100)}
+    rc_dict = {i: 0 for i in range(0,100)}
     unclass_dict = {i: 0 for i in range(0,100)}
     with open(input_file, 'r') as infile:
         file_linearr = [line.strip().split() for line in infile][3:] # skip first 3 lines
@@ -76,11 +78,13 @@ def parse_repeatmasker_output(input_file):
                 line_dict[div] = line_dict[div] + length
             elif 'sine' in feat[10].lower(): # if the TE is a SINE
                 sine_dict[div] = sine_dict[div] + length
+            elif 'rc' in feat[10].lower() or 'helitron' in feat[10].lower(): # if the TE is an RC/Helitron
+                rc_dict[div] = rc_dict[div] + length
             elif 'unknown' in feat[10].lower(): # if the TE is unclassified
                 unclass_dict[div] = unclass_dict[div] + length
             else:
                 pass
-    return ltr_dict,dna_dict,line_dict,sine_dict,unclass_dict
+    return ltr_dict,dna_dict,line_dict,sine_dict,rc_dict,unclass_dict
 
 def create_stacked_bar():
     fig, ax = plt.subplots()
@@ -90,22 +94,28 @@ def create_stacked_bar():
     sine_x = np.array([x for x in sine_dict.keys()])
     sine_y = np.array([y for y in sine_dict.values()])
     plt.bar(sine_x, sine_y, edgecolor='black',width=1, color='orange', label='SINE')
+    rc_x = np.array([x for x in rc_dict.keys()])
+    rc_y = np.array([y for y in rc_dict.values()])
+    print(rc_x)
+    print(rc_y)
+    plt.bar(rc_x, rc_y, edgecolor='black',width=1, color='cyan', label='RC', 
+            bottom=sine_y)
     line_x = np.array([x for x in line_dict.keys()])
     line_y = np.array([y for y in line_dict.values()])
     plt.bar(line_x, line_y, edgecolor='black',width=1, color='fuchsia', label='LINE', 
-            bottom=sine_y)
+            bottom=rc_y+sine_y)
     dna_x = np.array([x for x in dna_dict.keys()])
     dna_y = np.array([y for y in dna_dict.values()])
     plt.bar(dna_x, dna_y, edgecolor='black',width=1, color='blue', label='DNA', 
-            bottom=sine_y+line_y)
+            bottom=rc_y+sine_y+line_y)
     ltr_x = np.array([x for x in ltr_dict.keys()])
     ltr_y = np.array([y for y in ltr_dict.values()])
     plt.bar(ltr_x, ltr_y, edgecolor='black',width=1, color='red', label='LTR', 
-            bottom=sine_y+line_y+dna_y)
+            bottom=rc_y+sine_y+line_y+dna_y)
     unclass_x = np.array([x for x in unclass_dict.keys()])
     unclass_y = np.array([y for y in unclass_dict.values()])
     plt.bar(unclass_x, unclass_y, edgecolor='black',width=1, color='green', label='Unclassified', 
-            bottom=sine_y+line_y+dna_y+ltr_y)
+            bottom=rc_y+sine_y+line_y+dna_y+ltr_y)
 
     ax.set_axisbelow(True)
     plt.minorticks_on()
@@ -121,11 +131,11 @@ def create_stacked_bar():
     if args.species:
         plt.title(args.species)
     else:
-        pass # no title
+        plt.title('{}'.format(os.path.basename(args.input).split('_')[0]))
     plt.tight_layout()
-    # plt.show()
-    plt.savefig(figure_output)
-    plt.close()
+    plt.show()
+    # plt.savefig(figure_output)
+    # plt.close()
     
 
 if __name__ == "__main__":
@@ -135,5 +145,6 @@ if __name__ == "__main__":
     dna_dict = result_dicts[1]
     line_dict = result_dicts[2]
     sine_dict = result_dicts[3]
-    unclass_dict = result_dicts[4]
+    rc_dict = result_dicts[4]
+    unclass_dict = result_dicts[5]
     create_stacked_bar()
