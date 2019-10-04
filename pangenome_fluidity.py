@@ -21,7 +21,7 @@ Notes
 to fit with such a low number of samples.
 '''
 
-import os, sys, re, argparse, random, itertools, scipy, warnings
+import os, sys, re, argparse, random, itertools, scipy, warnings, subprocess
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -208,11 +208,14 @@ def genome_subsamples_fluidities(perm_list):
             split_combos = [combos[i:i + chunk] for i in range(0, len(combos), chunk)]
             pool = Pool(processes=args.cpus)
             results = pool.imap(subsample_multiprocess, split_combos)
+            pool.close()
+            pool.join()
             sub_fluid_dict[N].append(results)
         else:
             last_run = subsample_multiprocess(N_combos)
             sub_fluid_dict[N].append(last_run)
         sub_fluid_dict[N]=list(flatten(sub_fluid_dict[N]))
+        print(len(sub_fluid_dict[N]))
     return sub_fluid_dict
 
 def flatten(lis):
@@ -307,8 +310,8 @@ def create_fluidity_results(figure_output, results_output):
     plt.xlabel('Number of genomes sampled')
     plt.ylabel('Fluidity, '+u'\u03C6')
     plt.tight_layout()
-    # plt.show()
-    plt.savefig(figure_output)
+    plt.show()
+    # plt.savefig(figure_output)
 
     with open(results_output, 'w') as results: # print out fluidity results
         results.write('Genomes_Sampled\tFluidity\tTotal_Variance\tTotal_Stderr\tExponential_top\tExponential_bottom\n')
