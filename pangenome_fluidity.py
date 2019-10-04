@@ -310,8 +310,7 @@ def create_fluidity_results(figure_output, results_output):
     plt.xlabel('Number of genomes sampled')
     plt.ylabel('Fluidity, '+u'\u03C6')
     plt.tight_layout()
-    plt.show()
-    # plt.savefig(figure_output)
+    plt.savefig(figure_output)
 
     with open(results_output, 'w') as results: # print out fluidity results
         results.write('Genomes_Sampled\tFluidity\tTotal_Variance\tTotal_Stderr\tExponential_top\tExponential_bottom\n')
