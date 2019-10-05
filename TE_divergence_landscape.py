@@ -16,7 +16,7 @@ class MyFormatter(argparse.RawTextHelpFormatter):
     def __init__(self, prog):
         super(MyFormatter, self).__init__(prog, max_help_position=48)
 parser = argparse.ArgumentParser(
-    usage='./%(prog)s [options] -d directory -o output',
+    usage='./%(prog)s [options] -i RepeatMasker.out file -o output',
     description = '''    Takes RepeatMasker .out file and plots a landscape of 
     transposable elements based on percent divergence and transposable element fragment 
     lengths.''',
