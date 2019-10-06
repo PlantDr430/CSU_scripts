@@ -3,6 +3,11 @@
 
 ## Examples of figure output from specified scripts.
 
+### RIP_blast_analysis.py
+Blast all v. all method to detect presence of RIP (Galagan et al. 2003, Urquhart et al. 2018).
+
+![RIP_blast](https://github.com/PlantDr430/images/blob/master/rip_blast_examples.png)
+
 ### genome_speed_hexbins.py
 Takes a Gff3 or Bed file to produce a density plot map of intergenic regions lengths (kbp) like so:
 
