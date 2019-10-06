@@ -131,9 +131,8 @@ def create_stacked_bar():
     else:
         plt.title('{}'.format(os.path.basename(args.input).split('_')[0]))
     plt.tight_layout()
-    plt.show()
-    # plt.savefig(figure_output)
-    # plt.close()
+    plt.savefig(figure_output)
+    plt.close()
     
 
 if __name__ == "__main__":
