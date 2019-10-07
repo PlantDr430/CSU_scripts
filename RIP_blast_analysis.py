@@ -301,7 +301,7 @@ def makeblast_database(n, fasta):
             if 'error' in log.read():
                 print('ERROR: There was an error when making the blastdb for {}, check the logfile '\
                 'in {}'.format(n, logfile))
-                # sys.exit()
+                sys.exit()
     else:
         pass
 
@@ -318,7 +318,7 @@ def perform_blast_search(n, fasta, final_species):
             if 'error' in log.read():
                 print('ERROR: There was an error producing the blast results for {}, check the logfile '\
                 'in {}'.format(n, logfile))
-                # sys.exit()
+                sys.exit()
     else:
         print('Previous blast results for {} found, will use those.'.format(n))
     if os.path.getsize(blast_out) > 0:
@@ -406,7 +406,6 @@ def make_bar_graph():
         ax.set_zlabel('Fraction of orthologs', fontsize=12)
         ax.view_init(elev=args.elev, azim=args.azim)
     ax.set_xlim((args.xlimits[0],args.xlimits[1]))
-    # plt.show()
     plt.savefig(figure_output)
     plt.close()
 
