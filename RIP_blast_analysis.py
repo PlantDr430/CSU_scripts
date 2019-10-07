@@ -62,7 +62,7 @@ class MyFormatter(argparse.RawTextHelpFormatter):
     def __init__(self, prog):
         super(MyFormatter, self).__init__(prog, max_help_position=48)
 parser = argparse.ArgumentParser(
-    usage='./%(prog)s [options] [-in fasta_file -s species_name] or [-b batch_file] -o output_basename',
+    usage='./%(prog)s [options] [-in fasta_file -s species_name] or [-b batch_file] -o output_directory',
     description = '''    Performs all v. all blast analysis and bins 2nd best hits by identity 
     (i.e. next hit besides itself) against the fraction of genes in bins of total orthologs.''',
     
@@ -158,16 +158,30 @@ parser.add_argument(
 )
 parser.add_argument(
     '--elev',
-    default = 30,
+    default = 50,
     type=int,
-    help = 'Elevation angle to view 3D plot [default = 30]',
+    help = 'Elevation angle to view 3D plot [default = 50]',
     metavar=''
 )
 parser.add_argument(
     '--azim',
-    default = -60,
+    default = -50,
     type=int,
-    help = 'Angle of z-axis to view 3D plot [default = -60]',
+    help = 'Angle of z-axis to view 3D plot [default = -50]',
+    metavar=''
+)
+parser.add_argument(
+    '--yfontsize',
+    default = 12,
+    type=int,
+    help = 'Fontsize of y-axis labels [default = 12]',
+    metavar=''
+)
+parser.add_argument(
+    '--yrotation',
+    default = -20,
+    type=int,
+    help = 'Rotation of y-axis labels [default = -20]',
     metavar=''
 )
 args=parser.parse_args()
@@ -240,15 +254,15 @@ if args.batch:
     categories = []
     batch_file =  os.path.abspath(os.path.join(currentdir, args.batch))
     with open(batch_file ,'r') as batch_in:
-        batch_linearr = [line.strip().split('\t') for line in batch_in]
+        batch_linearr = [line.strip().split('\t') for line in batch_in if not line.startswith('#')]
         for line in batch_linearr:
             if len(batch_linearr[0]) == 3: # if there are categories
                 categories.append(line[2])
-                input_tuples.append((line[0],line[1],line[2]))
+                input_tuples.append((line[0].replace(' ', '_'),line[1],line[2]))
             else: # if there are no categories
-                input_tuples.append((line[0],line[1]))
+                input_tuples.append((line[0].replace(' ', '_'),line[1]))
     if categories:
-        input_tuples = sorted(input_tuples, key = lambda x: x[2]) # sort to group categories
+        input_tuples = sorted(input_tuples, key = lambda x: (x[2], x[0])) # sort to group categories
         categories = list(set(categories)) # get set list of all categories
 
 # create output folders and define pathsep
@@ -269,20 +283,29 @@ log_dir = os.path.abspath(os.path.join(result_dir, 'logfiles'))
 
 ##### Start main run #####
 
-def makeblast_database(n, fasta): #TODO find easy way to check for all already make databases
+def makeblast_database(n, fasta):
     logfile = os.path.abspath(os.path.join(log_dir, n+'_db.log'))
-    if os.path.exists(logfile):
-        os.remove(logfile)
-    subprocess.call([MAKEBLASTDB, '-in', fasta, '-dbtype', args.dbtype, '-parse_seqids', 
-    '-out', n, '-logfile', logfile], cwd=databases)
-    with open(logfile, 'r') as log: # check for errors
-        if 'BLAST options error' in log.read():
-            print('ERROR: There was an error when making the blastdb for {}, check the logfile '\
-            'in {}'.format(n, logfile))
-            sys.exit()
+    database_present = None
+    extensions = ['.phr', '.pin', '.pog', '.psd', '.psi', '.psq']
+    for ext in extensions:
+        database_ext = os.path.abspath(os.path.join(databases, n+ext))
+        if not os.path.exists(database_ext):
+            database_present=False
+            break
+    if database_present == False:
+        if os.path.exists(logfile):
+            os.remove(logfile)
+        subprocess.call([MAKEBLASTDB, '-in', fasta, '-dbtype', args.dbtype, '-parse_seqids', 
+        '-out', n, '-logfile', logfile], cwd=databases)
+        with open(logfile, 'r') as log: # check for errors
+            if 'error' in log.read():
+                print('ERROR: There was an error when making the blastdb for {}, check the logfile '\
+                'in {}'.format(n, logfile))
+                # sys.exit()
+    else:
+        pass
 
-def perform_blast_search(n, fasta):
-    blast_dict[n] = []
+def perform_blast_search(n, fasta, final_species):
     logfile = os.path.abspath(os.path.join(log_dir, n+'_blast.log'))
     db_path = os.path.abspath(os.path.join(databases, n))
     blast_out = os.path.abspath(os.path.join(blast_dir, n))
@@ -291,13 +314,24 @@ def perform_blast_search(n, fasta):
             subprocess.call([BLAST, '-db', db_path, '-query', fasta, '-out', n, '-evalue', 
             str(args.evalue), '-outfmt', '6', '-max_target_seqs', '2', '-max_hsps', '1', '-num_threads', 
             str(args.cpus)], cwd=blast_dir, stdout=log, stderr=log)
+        with open(logfile, 'r') as log: # check for errors
+            if 'error' in log.read():
+                print('ERROR: There was an error producing the blast results for {}, check the logfile '\
+                'in {}'.format(n, logfile))
+                # sys.exit()
     else:
         print('Previous blast results for {} found, will use those.'.format(n))
-    with open(blast_out, 'r') as b_out:
-        out_linearr = [line.strip().split('\t') for line in b_out]
-        for line in out_linearr:
-            if not line[0] == line[1]: # if query gene matches subject gene, skip
-                blast_dict[n].append(float(line[2])) # append % identify to dictionary
+    if os.path.getsize(blast_out) > 0:
+        blast_dict[n] = []
+        final_species.append(n)
+        with open(blast_out, 'r') as b_out:
+            out_linearr = [line.strip().split('\t') for line in b_out]
+            for line in out_linearr:
+                if not line[0] == line[1]: # if query gene matches subject gene, skip
+                    blast_dict[n].append(float(line[2])) # append % identify to dictionary
+    elif os.path.getsize(blast_out) == 0:
+        print('WARNING: The blast results for {} were blank, we are skipping this file'.format(n))
+        # Since file is empty, do not append to final_species
 
 def bin_data(n):
     bin_dict[n] = {i: 0 for i in range(0,101)}
@@ -307,16 +341,15 @@ def bin_data(n):
         bin_dict[n][i] = bin_dict[n][i]/len(blast_dict[n]) # get proportion from genes used
 
 def dict_to_dataframe():
-    if args.batch:
-        df = pd.DataFrame() # create blank dataframe
-        count = 0
-        for name in [name[0] for name in input_tuples]: # loop through each species and create dataframe
-            count += 1
-            if count == 1: # fill in dataframe with first data
-                df = pd.DataFrame(data=bin_dict[name], index=[name]).transpose()
-            else: # merge first data frame with subsequent dataframes
-                tmp_df = pd.DataFrame(data=bin_dict[name], index=[name]).transpose()
-                df = df.merge(tmp_df, right_index=True, left_index=True)
+    df = pd.DataFrame() # create blank dataframe
+    count = 0
+    for name in [name[0] for name in input_tuples]: # loop through each species and create dataframe
+        count += 1
+        if count == 1: # fill in dataframe with first data
+            df = pd.DataFrame(data=bin_dict[name], index=[name]).transpose()
+        else: # merge first data frame with subsequent dataframes
+            tmp_df = pd.DataFrame(data=bin_dict[name], index=[name]).transpose()
+            df = df.merge(tmp_df, right_index=True, left_index=True)
     return df
 
 def make_bar_graph():
@@ -366,14 +399,16 @@ def make_bar_graph():
                 ys = z
                 cs = [c] * len(ys)
                 ax.bar(xs, ys, zs=k, zdir='y', color=cs, alpha=0.8)
-        ax.view_init(elev=args.elev, azim=args.azim)
-        ax.set_xlabel('Identity (%)', labelpad = 15)
-        ax.set_zlabel('Fraction of orthologs')
         y_labels = [name[0].replace('_',' ') for name in input_tuples]
         ax.set_yticks(y_ticks) # had to reset the ticks to get the labels to align properly
-        ax.set_yticklabels(y_labels)
+        ax.set_yticklabels(y_labels, fontsize=args.yfontsize, va='center_baseline', ha='left', rotation=args.yrotation)
+        ax.set_xlabel('Identity (%)', labelpad = 15, fontsize=12)
+        ax.set_zlabel('Fraction of orthologs', fontsize=12)
+        ax.view_init(elev=args.elev, azim=args.azim)
     ax.set_xlim((args.xlimits[0],args.xlimits[1]))
-    plt.show()
+    # plt.show()
+    plt.savefig(figure_output)
+    plt.close()
 
 if __name__ == "__main__":
 
@@ -388,13 +423,17 @@ if __name__ == "__main__":
     # perform blast search(es)
     print('Performing blast searches')
     blast_dict = {}
+    final_species = [] # list of speices that had blast_results
     if args.batch:
         for tup in input_tuples:
-            perform_blast_search(tup[0], tup[1])
+            perform_blast_search(tup[0], tup[1], final_species)
+        if not len(input_tuples) == len(final_species): # double check to remove blank data
+            input_tuples = [tup for tup in input_tuples if tup[0] in final_species]
     if args.input:
         perform_blast_search(name, input_fasta)
 
     # bin the data
+    print('Binning data')
     bin_dict = {}
     if args.batch:
         for tup in input_tuples:
@@ -407,6 +446,9 @@ if __name__ == "__main__":
         df = dict_to_dataframe()
     if args.input:
         df = pd.DataFrame(data=bin_dict[name], index=[name]).transpose()
+    dataframe_output = os.path.abspath(os.path.join(result_dir, args.out+'_dataframe.csv'))
+    df.to_csv(dataframe_output)
 
     # make figure
+    figure_output = os.path.abspath(os.path.join(result_dir, args.out+'.png'))
     make_bar_graph()
