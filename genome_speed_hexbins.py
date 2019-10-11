@@ -127,6 +127,11 @@ parser.add_argument(
     help = 'Gridsize for hexes. Larger number is smaller hexes, smaller are larger hexes. [default = 50 50]',
     metavar=''
 )
+parser.add_argument(
+    '--title',
+    help = 'Title to be placed over figure (use quotes if using spaces)',
+    metavar=''
+)
 args=parser.parse_args()
 
 def parse_gff3(input_gff3):
@@ -173,32 +178,69 @@ def parse_bed(input_bed):
 
 def get_distances_between_genes():
     dist_dict = {} #{Protein_name:(distance to previous gene (5' flank) (kbp), distance to next gene (3' flank) (kbp))}
+    overlap_genes = []
     first_gene_count = 0
     last_gene_count = 0
+    overlap_count = 0
     for contig, genes in contig_dict.items():
         if len(genes) > 1: # throw away genes where there is only 1 gene on the contig (can't get distances)
             for gene in range(0, len(genes)):
                 if gene == 0: # if gene is the first gene in the contig
                     first_gene_count += 1
-                    if not args.disregard_contig_ends: # set flanking 5' end of 1st gene in contig to x-min
-                        dist_dict[genes[gene][2]] = [args.xlimits[0], (genes[gene+1][0] - genes[gene][1])/1000]
+                    flank_5 = args.ylimits[0] # set flanking 5' end of 1st gene in contig to y-min
+                    flank_3 = (genes[gene+1][0] - genes[gene][1])/1000 # distance of start of next gene to stop of current gene
+                    if flank_3 < 0: # check for overlap
+                        flank_3 = args.xlimits[0] # if overlap set to x-min
+                    if not args.disregard_contig_ends: # keep all results
+                        if flank_3 == args.xlimits[0]:
+                            overlap_count += 1
+                            overlap_genes.append(genes[gene][2])
+                        dist_dict[genes[gene][2]] = [flank_5, flank_3]
                     else: # throw away 1st gene in contigs
                         pass
                 elif gene == len(genes) - 1: # if gene is the last gene in the contig
                     last_gene_count += 1
-                    if not args.disregard_contig_ends: # set flanking 3' end of last gene in contig to y-min
-                        dist_dict[genes[gene][2]] = [(genes[gene][0] - genes[gene-1][1])/1000, args.ylimits[0]]
+                    flank_5 = (genes[gene][0] - genes[gene-1][1])/1000 # distance of stop of previous gene to start of current gene
+                    if flank_5 < 0:# check for overlap 
+                        flank_5 = args.ylimits[0] # if overlap set to y-min
+                    flank_3 = args.xlimits[0] # set flanking 3' end of last gene in contig to x-min
+                    if not args.disregard_contig_ends: # keep all results
+                        if flank_5 == args.ylimits[0]:
+                            overlap_count += 1
+                            overlap_genes.append(genes[gene][2])
+                        dist_dict[genes[gene][2]] = [flank_5, flank_3]
                     else: # throw away last gene in contigs
                         pass
                 else: # get distances from start of gene to end of previous gene and end of gene to start of next gene
-                    dist_dict[genes[gene][2]] = [(genes[gene][0]-genes[gene-1][1])/1000,
-                        (genes[gene+1][0]-genes[gene][1])/1000]
+                    flank_5 = (genes[gene][0]-genes[gene-1][1])/1000 # distance of stop of previous gene to start of current gene
+                    if flank_5 < 0:
+                        flank_5 = args.ylimits[0]
+                    flank_3 = (genes[gene+1][0]-genes[gene][1])/1000 # distance of start of next gene to stop of current gene
+                    if flank_3 < 0:
+                        flank_3 = args.xlimits[0]
+                    if not args.disregard_contig_ends: # keep all results
+                        if flank_3 == args.xlimits[0] or flank_5 == args.ylimits[0]:
+                            overlap_count += 1
+                            overlap_genes.append(genes[gene][2])
+                        dist_dict[genes[gene][2]] = [flank_5, flank_3]
+                    if args.disregard_contig_ends: # discard altered genes
+                        if flank_3 == args.xlimits[0] or flank_5 == args.ylimits[0]:
+                            overlap_count += 1
+                            overlap_genes.append(genes[gene][2])
+                            pass
+                        else:
+                            dist_dict[genes[gene][2]] = [flank_5, flank_3]
+    if overlap_genes: # print a warning message to let user know if overlapped genes
+        print(("WARNING: {} genes were found to be overlapping, the '5 or 3' ends have been set to 0. The genes that had "
+        "overlapping regions are as followed.").format(overlap_count))
+        print(overlap_genes)
     if args.disregard_contig_ends: # print a warning message to let user know howm any genes they aren't plotting
         print(('You will not be plotting a total of {} genes from the start and end of each contig')
-        .format(first_gene_count + last_gene_count))
+        .format(first_gene_count + last_gene_count + overlap_count))
     return dist_dict
 
-def create_density_plot():
+
+def create_hexbin_plot():
     prime5_flanking_data = []
     prime3_flanking_data = []
     for distances in distance_dict.values(): # create lists of flanking data for plotting
@@ -230,6 +272,10 @@ def create_density_plot():
     plt.grid(which='minor', axis='both', color='white', linestyle='--', alpha=0.3)
     plt.xlabel("3' Flanking intergenic region (kbp)")
     plt.ylabel("5' Flanking intergenic region (kbp)")
+    if args.title:
+        plt.title(args.title)
+    else:
+        pass
     # plt.show()
     plt.savefig(output_fig)
 
@@ -248,4 +294,4 @@ if __name__ == "__main__":
         with open(list_file, 'r') as in_list:
             overlay_list = [gene.strip() for gene in in_list]
     distance_dict = get_distances_between_genes()
-    create_density_plot()
+    create_hexbin_plot()
