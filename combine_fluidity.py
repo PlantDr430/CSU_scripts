@@ -67,7 +67,7 @@ data = []
 curve_top = []
 curve_bottom = []
 legend_labels = []
-z_test_dict = {} # {Name : [fluidity, genome count, stdev]}
+z_test_dict = {} # {Name : [fluidity, genome count, variance]}
 def parse_input_files(input_file):
     legend_name = input_file.split('_')[0]
     legend_labels.append(legend_name)
@@ -76,9 +76,9 @@ def parse_input_files(input_file):
     x_labels = np.array(df['Genomes_Sampled'])
     genome_count = x_labels[-1]
     x_len.append(genome_count)
-    stdev = sqrt(df['Total_Variance'].iloc[len(df['Total_Variance'])-1])
+    variance = sqrt(df['Total_Variance'].iloc[len(df['Total_Variance'])-1])
     fluid_all = df['Fluidity'].iloc[len(df['Fluidity'])-1]
-    z_test_dict[legend_name] = [fluid_all,genome_count,stdev]
+    z_test_dict[legend_name] = [fluid_all,genome_count,variance]
     fluid_data = np.array([fluid_all for x in range(0,len(df['Fluidity']))])
     data.append((x_labels, fluid_data))
     curve_top.append(np.array(df['Exponential_top']))
@@ -90,7 +90,6 @@ def create_fluidity_figure(output_file):
     for i in range(0, len(data)):
         num_genomes = str(data[i][0][-1])
         plt.plot(data[i][0], data[i][1], ls='--', lw=1.5, color=colors[i], alpha=1, label='{}'.format(legend_labels[i]+' ('+num_genomes+')'))
-        # plt.plot(data[i][0], data[i][1], ls='--', lw=1.5, color=colors[i], alpha=1, label='Species_'+str(i+1))
         plt.fill_between(data[i][0], curve_top[i], curve_bottom[i], facecolor=colors[i], alpha=0.25)
     ax.set_facecolor('lightgrey')
     ax.set_axisbelow(True)
@@ -106,9 +105,13 @@ def create_fluidity_figure(output_file):
     plt.tight_layout()
     plt.savefig(output_file)
 
-def two_sample_z(X1, n1, sd1, X2, n2, sd2):
-    pooledSE = sqrt(sd1**2/n1 + sd2**2/n2)
-    z = ((X1 - X2) - 0)/pooledSE
+def two_sample_z(X1, n1, var1, X2, n2, var2):
+    '''
+    Modified z-test based on documentation in Kislyuk et al. 2011 and personal
+    communications with the corresponding author Joshua S Weitz.
+    '''
+    pooledVAR = sqrt(var1 + var2)
+    z = ((X1 - X2) - 0)/pooledVAR
     pval = 2*(norm.sf(abs(z)))
     return pval
 
