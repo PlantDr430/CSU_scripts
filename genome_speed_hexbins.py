@@ -312,8 +312,8 @@ def create_hexbin_plot():
     plt.minorticks_on()
     ax.grid(which='major', linestyle='-', linewidth='1', color='white')
     plt.grid(which='minor', axis='both', color='white', linestyle='--', alpha=0.3)
-    plt.xlabel("3' Flanking intergenic region (kbp)")
-    plt.ylabel("5' Flanking intergenic region (kbp)")
+    plt.xlabel("3' Flanking intergenic region (kbp)", fontsize=12)
+    plt.ylabel("5' Flanking intergenic region (kbp)", fontsize=12)
     if args.list: # overlay scatter plot of input genes
         scatter = plt.scatter(overlay_x, overlay_y, s=args.marker_size, c=args.marker_color,
             marker=args.marker_style)
@@ -325,7 +325,6 @@ def create_hexbin_plot():
                 final_p = '< 0.01'
             else:
                 final_p = '= %.3f' % round(overall_p,3)
-                print(final_p)
             scatter.set_label(args.name+ ' ($\it{p}$ %s)' % final_p)
         else:
             scatter.set_label(args.name)
@@ -346,9 +345,9 @@ def create_hexbin_plot():
             top_axes.set_title(header)
     else:
         pass
-    plt.show()
-    # plt.savefig(output_fig)
-    # plt.close()
+    # plt.show()
+    plt.savefig(output_fig)
+    plt.close()
 
 def get_normal_distribution(values):
     values = sorted(np.log(values)) # get natural logs of the values
