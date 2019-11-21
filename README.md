@@ -11,7 +11,7 @@ Blast all v. all method to detect presence of RIP (Galagan et al. 2003, Urquhart
 ### genome_speed_hexbins.py
 Takes a Gff3 or Bed file to produce a density plot map of intergenic regions lengths (kbp) like so:
 
-![Hexbins](https://github.com/PlantDr430/images/blob/master/metabolite_speed.png)
+![Hexbins](https://github.com/PlantDr430/images/blob/master/speed_norm_dist_example.png)
 
 
 ### genome_fluidity.py
