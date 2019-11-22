@@ -19,12 +19,14 @@ distance means will be computed for each axis and averaged together for an overa
 will be reported in the legend.
 '''
 
-import os, re, sys, argparse, random, inspect
+import os, re, sys, argparse, inspect
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats as stats
 from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
 from matplotlib.ticker import FormatStrFormatter
+from statsmodels.stats.multitest import multipletests
+from random import sample
 
 rundir = os.getcwd()
 
@@ -62,9 +64,45 @@ parser.add_argument(
 parser.add_argument(
     '-s',
     '--stats',
-    default='welch',
-    choices=['welch', 'mannwhitney'],
-    help = 'Statistical test to use for mean comparisons of overlaid genes [welch|mannwhitney] [defaut: welch]',
+    default='resample',
+    choices=['resample','allvall'],
+    help = 'Type of statistics to use for statistical comparisons. \
+    [resample|allvall] [defaut: resample]',
+    metavar=''
+)
+parser.add_argument(
+    '-t',
+    '--test',
+    default='mannwhitney',
+    choices=['mannwhitney','students'],
+    help = 'Statistical test to use for mean comparisons of overlaid genes \
+        [mannwhitney|students] [defaut: mannwhitney]',
+    metavar=''
+)
+parser.add_argument(
+    '-n_s',
+    '--n_size',
+    default=100,
+    type=int,
+    help = 'Gene number sample size of overlaid genes for random resampling [defaut: 100]',
+    metavar=''
+)
+parser.add_argument(
+    '-re',
+    '--resample',
+    default=1000,
+    type=int,
+    help = 'Number of resamplings to perform [defaut: 1000]',
+    metavar=''
+)
+parser.add_argument(
+    '-multi',
+    '--multitest',
+    default='fdr_bh',
+    choices=['bonferroni', 'sidak', 'holm-sidak','holm','simes-hochberg','hommel',\
+        'fdr_bh','fdr_by','fdr_tsbh','fdr_tsbky'],
+    help = 'Multi-test correction to use [bonferroni|sidak|holm-sidak|holm|'\
+        'simes-hochberg|hommel|fdr_bh|fdr_by|fdr_tsbh|fdr_tsbky] [defaut: fdr_bh]',
     metavar=''
 )
 parser.add_argument(
@@ -76,7 +114,8 @@ parser.add_argument(
     '-n',
     '--name',
     default = 'Specific genes',
-    help = "Name to give to genes overlaid ontop of plot for legend, use quotes if using spaces."\
+    help = "Name to give to genes overlaid ontop of plot for legend, use quotes \
+        if using spaces."\
     "(i.e. 'Effector Proteins')",
     metavar=''
 )
@@ -90,13 +129,15 @@ parser.add_argument(
 parser.add_argument(
     '--marker_style',
     default='^',
-    help = "Marker style for overlaid genes (make sure to use quotes: 'o', '<', 's',etc) [default = '^']",
+    help = "Marker style for overlaid genes (make sure to use quotes: 'o', '<', \
+        's',etc) [default = '^']",
     metavar=''
 )
 parser.add_argument(
     '--marker_color',
     default = 'red',
-    help = 'Color of markers to use for overlaid genes (matplotlib color names or values) [default: red]',
+    help = 'Color of markers to use for overlaid genes (matplotlib color names or \
+        values) [default: red]',
     metavar=''
 )
 parser.add_argument(
@@ -147,7 +188,8 @@ parser.add_argument(
     '--gridsize',
     nargs = '+',
     default = [50, 50],
-    help = 'Gridsize for hexes. Larger number are smaller hexes, smaller are larger hexes. [default = 50 50]',
+    help = 'Gridsize for hexes. Larger number are smaller hexes, smaller are larger \
+        hexes. [default = 50 50]',
     type=int,
     metavar=''
 )
@@ -300,7 +342,6 @@ def create_arrays():
 
 def create_hexbin_plot():
     fig, ax = plt.subplots(figsize=(args.figsize[0],args.figsize[1]), dpi=args.dpi)
-
     ax.set_ylim((args.ylimits[0],args.ylimits[1]))
     ax.set_xlim((args.xlimits[0],args.xlimits[1]))
     plt.hexbin(prime3_flank, prime5_flank, xscale='log', 
@@ -328,7 +369,6 @@ def create_hexbin_plot():
             scatter.set_label(args.name+ ' ($\it{p}$ %s)' % final_p)
         else:
             scatter.set_label(args.name)
-
         ax.legend(framealpha=1.0, prop={'size': args.legend}, markerscale=args.marker_size) # add legend for overlay
 
     if args.title:
@@ -360,50 +400,92 @@ def create_normal_distribution_plots(axes):
     divider = make_axes_locatable(axes)
     ax_norm_x = divider.append_axes('top', 0.5, pad=0.05, sharex=axes)
     ax_norm_y = divider.append_axes('right', 0.5, pad=0.05, sharey=axes)
-    
+
     ax_norm_x.xaxis.set_tick_params(which='both', labelbottom = False, bottom = False)
     ax_norm_y.yaxis.set_tick_params(which='both', labelleft = False, left = False)
-    
+
     # filter lists to make sure we don't use data points that were positioned along axes (i.e. = 0)
     prime3_filt = [x for x in prime3_flank_no_over if x > args.xlimits[0]]
     prime5_filt = [x for x in prime5_flank_no_over if x > args.ylimits[0]]
     overlay_x_filt = [x for x in overlay_x if x > args.xlimits[0]]
     overlay_y_filt = [x for x in overlay_y if x > args.ylimits[0]]
     overall_p = compute_statistics(overlay_x_filt, prime3_filt, overlay_y_filt, prime5_filt)
-    
+
     prime3_norm = get_normal_distribution(prime3_filt)
     prime5_norm = get_normal_distribution(prime5_filt)
     overlay_x_norm = get_normal_distribution(overlay_x_filt)
     overlay_y_norm = get_normal_distribution(overlay_y_filt)
-    
+
     top_axis_max = max(prime3_norm.tolist() + overlay_x_norm.tolist())*1.1
     ax_norm_x.yaxis.set_major_formatter(FormatStrFormatter('%g'))
     ax_norm_x.set_ylim(ymin=0, ymax=top_axis_max)
     ax_norm_x.plot(sorted(prime3_filt), prime3_norm, color = 'black')
     ax_norm_x.plot(sorted(overlay_x_filt), overlay_x_norm, color = args.marker_color)
-    
+
     right_axis_max = max(prime5_norm.tolist() + overlay_y_norm.tolist())*1.1
     ax_norm_y.xaxis.set_major_formatter(FormatStrFormatter('%g'))
     ax_norm_y.set_xlim(xmin=0, xmax=right_axis_max)
     ax_norm_y.plot(prime5_norm, sorted(prime5_filt), color = 'black')
     ax_norm_y.plot(overlay_y_norm, sorted(overlay_y_filt), color = args.marker_color)
     return overall_p, ax_norm_x
-    
+
 def compute_statistics(over_x, prime3, over_y, prime5):
     '''
-    Computes significane differnces between distance means of overlay genes and 
-    all other genes on the 5' and 3' side. These two p-values are averages together 
-    to report the final p-value of both sides. Default is the independent 
-    unequal variance t-test (Welch's test), but user can change to a Mann-Whitney U-test 
-    (two-sided) through arguments.
+    Determines significance between distributions of overlaid genes and all other genes 
+    not in the overliad list on the 5' and 3' side. 
+    
+    Default = Resample (can be more accurate)
+    
+    Will subsample (--resample number of times) the overlaid genes and all other genes by 
+    --n_size and will compute uncorrected p-values. The uncorrected p-values will be corrected 
+    using statsmodels.stats.multitest.multipletests correction [Default: Benjamini/Hochberg]. 
+    The corrected p-values for the 5' and 3' sides will be averaged and the two resulting 
+    p-values will be averaged together for an overall p-value. Note: If there are not enough 
+    overlaid genes to select --n_size times, then the n_size will be automatically reduced to 
+    75% of the number of genes available from the overlaid list.
+    
+    Alternative = allvall (potentially higher risk of type I errors)
+    
+    Will perform a test comparison of ALL overlaid genes versus ALL other genes (i.e. Mann-Whitney U 
+    or Welch's test (i.e. unequal variance students).
     '''
-    if args.stats == 'welch':
-        top_t, top_p = stats.ttest_ind(over_x, prime3, equal_var=False)
-        right_t, right_p = stats.ttest_ind(over_y, prime5, equal_var=False)
-    elif args.stats == 'mannwhitney':
-        top_d, top_p = stats.mannwhitneyu(over_x, prime3, alternative='two-sided')
-        right_d, right_p = stats.mannwhitneyu(overY, prime5, alternative='two-sided')
-    overall_p = np.mean([top_p, right_p])
+    if args.stats == 'resample':
+        if len(over_x) < args.n_size or len(over_y) < args.n_size:
+            n_size = int(min([len(over_x), len(over_y)])*0.75)
+            print(('WARNING: The number of genes to select for random resampling is {}, '
+            'however, there were only {} {} to select from. {} number of genes will be used '
+            'to select for random resampling').format(args.n_size, n_size/0.75, args.name, n_size))
+        else:
+            n_size = args.n_size
+
+        top_ps = [] # uncorrected p-values for top plot (x-axis)
+        right_ps = [] # uncorrected p-values for right plot (y-axis)
+        for i in range(0, args.resample):
+            if args.test == 'mannwhitney':
+                top_t, top_p = stats.mannwhitneyu(sample(over_x,n_size), 
+                    sample(prime3,args.n_size), alternative='two-sided')
+                right_t, right_p = stats.mannwhitneyu(sample(over_y,n_size), 
+                    sample(prime5,args.n_size), alternative='two-sided')
+            elif args.test == 'students':
+                top_t, top_p = stats.ttest_ind(sample(over_x,n_size), 
+                    sample(prime3,args.n_size), equal_var=True)
+                right_t, right_p = stats.ttest_ind(sample(over_y,n_size), 
+                    sample(prime5,args.n_size), equal_var=True)
+            top_ps.append(top_p)
+            right_ps.append(right_p)
+        t_r, t_p, t_sf, t_bf = multipletests(top_ps, alpha=0.05, method=args.multitest)
+        r_r, r_p, r_sf, r_bf = multipletests(right_ps, alpha=0.05, method=args.multitest)
+        correct_top = np.mean(t_p)
+        correct_right = np.mean(r_p)
+        overall_p = np.mean([correct_top,correct_right])
+    elif args.stats == 'allvall':
+        if args.test == 'mannwhitney':
+            top_d, top_p = stats.mannwhitneyu(over_x, prime3, alternative='two-sided')
+            right_d, right_p = stats.mannwhitneyu(over_y, prime5, alternative='two-sided')
+        elif args.test == 'students':
+            top_t, top_p = stats.ttest_ind(over_x, prime3, equal_var=False)
+            right_t, right_p = stats.ttest_ind(over_y, prime5, equal_var=False)
+        overall_p = np.mean([top_p, right_p])
     return overall_p
 
 if __name__ == "__main__":
