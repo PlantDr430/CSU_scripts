@@ -74,9 +74,9 @@ parser.add_argument(
     '-t',
     '--test',
     default='mannwhitney',
-    choices=['mannwhitney','students'],
+    choices=['mannwhitney','students', 'ks_2samp'],
     help = 'Statistical test to use for mean comparisons of overlaid genes \
-        [mannwhitney|students] [defaut: mannwhitney]',
+        [mannwhitney|students|ks_2samp] [defaut: mannwhitney]',
     metavar=''
 )
 parser.add_argument(
@@ -471,6 +471,9 @@ def compute_statistics(over_x, prime3, over_y, prime5):
                     sample(prime3,args.n_size), equal_var=True)
                 right_t, right_p = stats.ttest_ind(sample(over_y,n_size), 
                     sample(prime5,args.n_size), equal_var=True)
+            elif args.test == 'ks_2samp':
+                top_d, top_p = stats.ks_2samp(over_x, prime3)
+                right_d, right_p = stats.ks_2samp(over_y, prime5)
             top_ps.append(top_p)
             right_ps.append(right_p)
         t_r, t_p, t_sf, t_bf = multipletests(top_ps, alpha=0.05, method=args.multitest)
@@ -485,6 +488,9 @@ def compute_statistics(over_x, prime3, over_y, prime5):
         elif args.test == 'students':
             top_t, top_p = stats.ttest_ind(over_x, prime3, equal_var=False)
             right_t, right_p = stats.ttest_ind(over_y, prime5, equal_var=False)
+        elif args.test == 'ks_2samp':
+            top_d, top_p = stats.ks_2samp(over_x, prime3)
+            right_d, right_p = stats.ks_2samp(over_y, prime5)
         overall_p = np.mean([top_p, right_p])
     return overall_p
 
