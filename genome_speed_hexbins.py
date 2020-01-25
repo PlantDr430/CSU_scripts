@@ -62,6 +62,24 @@ parser.add_argument(
     metavar=''
 )
 parser.add_argument(
+    '--gridsize',
+    nargs = '+',
+    default = [50, 50],
+    help = 'Gridsize for hexes. Larger number are smaller hexes, smaller are larger \
+        hexes. [default = 50 50]',
+    type=int,
+    metavar=''
+)
+parser.add_argument(
+    '--mincount',
+    default = 1,
+    help = 'Minimum count of genes required to display a hex bin. Increasing this value \
+    can improve plots if the genome has multiple compartments. However, if genomes have \
+    one compartment then a better respresentation is provided with the default value. [default = 1]',
+    type=int,
+    metavar=''
+)
+parser.add_argument(
     '-s',
     '--stats',
     default='resample',
@@ -185,15 +203,6 @@ parser.add_argument(
     metavar=''
 )
 parser.add_argument(
-    '--gridsize',
-    nargs = '+',
-    default = [50, 50],
-    help = 'Gridsize for hexes. Larger number are smaller hexes, smaller are larger \
-        hexes. [default = 50 50]',
-    type=int,
-    metavar=''
-)
-parser.add_argument(
     '--title',
     help = "Title to be placed over figure (use quotes if using spaces; i.e 'Genus species'",
     metavar=''
@@ -208,7 +217,8 @@ def parse_gff3(input_gff3):
                 col = line.split('\t')
                 if col[2] == 'gene':
                     try: # check to make sure 9th columns contains ID= feautres to get gene names
-                        gene_name = re.search(r'(ID=)([^;]*)', col[8]).group(2)+'-T1'
+                        # gene_name = re.search(r'(ID=)([^;]*)', col[8]).group(2)+'-T1'
+                        gene_name = re.search(r'(ID=)([^;]*)', col[8]).group(2)
                     except:
                         print('ERROR: Problem with gff3 file. Cannot find ID feautre for gene')
                         sys.exit()
@@ -255,7 +265,7 @@ def get_distances_between_genes():
                     first_gene_count += 1
                     flank_5 = args.ylimits[0] # set flanking 5' end of 1st gene in contig to y-min
                     flank_3 = (genes[gene+1][0] - genes[gene][1])/1000 # distance of start of next gene to stop of current gene
-                    if flank_3 < 0: # check for overlap
+                    if flank_3 <= 0: # check for overlap
                         flank_3 = args.xlimits[0] # if overlap set to x-min
                     if not args.disregard_contig_ends: # keep all results
                         if flank_3 == args.xlimits[0]:
@@ -267,7 +277,7 @@ def get_distances_between_genes():
                 elif gene == len(genes) - 1: # if gene is the last gene in the contig
                     last_gene_count += 1
                     flank_5 = (genes[gene][0] - genes[gene-1][1])/1000 # distance of stop of previous gene to start of current gene
-                    if flank_5 < 0:# check for overlap 
+                    if flank_5 <= 0:# check for overlap 
                         flank_5 = args.ylimits[0] # if overlap set to y-min
                     flank_3 = args.xlimits[0] # set flanking 3' end of last gene in contig to x-min
                     if not args.disregard_contig_ends: # keep all results
@@ -279,10 +289,10 @@ def get_distances_between_genes():
                         pass
                 else: # get distances from start of gene to end of previous gene and end of gene to start of next gene
                     flank_5 = (genes[gene][0]-genes[gene-1][1])/1000 # distance of stop of previous gene to start of current gene
-                    if flank_5 < 0:
+                    if flank_5 <= 0:
                         flank_5 = args.ylimits[0]
                     flank_3 = (genes[gene+1][0]-genes[gene][1])/1000 # distance of start of next gene to stop of current gene
-                    if flank_3 < 0:
+                    if flank_3 <= 0:
                         flank_3 = args.xlimits[0]
                     if not args.disregard_contig_ends: # keep all results
                         if flank_3 == args.xlimits[0] or flank_5 == args.ylimits[0]:
@@ -344,17 +354,18 @@ def create_hexbin_plot():
     fig, ax = plt.subplots(figsize=(args.figsize[0],args.figsize[1]), dpi=args.dpi)
     ax.set_ylim((args.ylimits[0],args.ylimits[1]))
     ax.set_xlim((args.xlimits[0],args.xlimits[1]))
+    ax.tick_params(axis='both', labelsize=13)
     plt.hexbin(prime3_flank, prime5_flank, xscale='log', 
-        yscale='log', gridsize=((args.gridsize[0],args.gridsize[0])), mincnt=1) # plot hexbins
+        yscale='log', gridsize=((args.gridsize[0],args.gridsize[0])), mincnt=args.mincount) # plot hexbins
     cb = plt.colorbar(shrink=0.25, aspect=5) # add color bar for hexbins
-    cb.ax.set_title('Counts', fontsize=10)
+    cb.ax.set_title('Counts', fontsize=12)
     ax.set_facecolor('lightgrey')
     ax.set_axisbelow(True)
     plt.minorticks_on()
     ax.grid(which='major', linestyle='-', linewidth='1', color='white')
     plt.grid(which='minor', axis='both', color='white', linestyle='--', alpha=0.3)
-    plt.xlabel("3' Flanking intergenic region (kbp)", fontsize=12)
-    plt.ylabel("5' Flanking intergenic region (kbp)", fontsize=12)
+    plt.xlabel("3' Flanking intergenic region (kbp)", fontsize=14)
+    plt.ylabel("5' Flanking intergenic region (kbp)", fontsize=14)
     if args.list: # overlay scatter plot of input genes
         scatter = plt.scatter(overlay_x, overlay_y, s=args.marker_size, c=args.marker_color,
             marker=args.marker_style)
@@ -380,9 +391,9 @@ def create_hexbin_plot():
         else:
             header = args.title
         if args.no_norm:
-            plt.title(header)
+            plt.title(header, fontsize=14)
         else:
-            top_axes.set_title(header)
+            top_axes.set_title(header, fontsize=14)
     else:
         pass
     # plt.show()
@@ -401,8 +412,8 @@ def create_normal_distribution_plots(axes):
     ax_norm_x = divider.append_axes('top', 0.5, pad=0.05, sharex=axes)
     ax_norm_y = divider.append_axes('right', 0.5, pad=0.05, sharey=axes)
 
-    ax_norm_x.xaxis.set_tick_params(which='both', labelbottom = False, bottom = False)
-    ax_norm_y.yaxis.set_tick_params(which='both', labelleft = False, left = False)
+    ax_norm_x.xaxis.set_tick_params(which='both', labelbottom = False, bottom = False, labelsize=14)
+    ax_norm_y.yaxis.set_tick_params(which='both', labelleft = False, left = False, labelsize=14)
 
     # filter lists to make sure we don't use data points that were positioned along axes (i.e. = 0)
     prime3_filt = [x for x in prime3_flank_no_over if x > args.xlimits[0]]
@@ -447,7 +458,7 @@ def compute_statistics(over_x, prime3, over_y, prime5):
     Alternative = allvall (potentially higher risk of type I errors)
     
     Will perform a test comparison of ALL overlaid genes versus ALL other genes (i.e. Mann-Whitney U 
-    or Welch's test (i.e. unequal variance students).
+    , Welch's test (i.e. unequal variance students), or Kolmogorov-Smirnov 2 sample test.
     '''
     if args.stats == 'resample':
         if len(over_x) < args.n_size or len(over_y) < args.n_size:
@@ -499,7 +510,7 @@ if __name__ == "__main__":
     output_fig = os.path.abspath(os.path.join(rundir, args.output+'.png'))
     if '.bed' in input_file:
         contig_dict = parse_bed(input_file)
-    elif '.gff3' in input_file:
+    elif '.gff3' in input_file or '.gff' in input_file:
         contig_dict = parse_gff3(input_file)
     else:
         print("ERROR: Couldn't distinquish the input file as a .bed or .gff3 file")
