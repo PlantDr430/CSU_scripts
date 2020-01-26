@@ -329,15 +329,27 @@ def create_dataframe_from_dictionary(dictionary):
         te_df = pd.DataFrame(nest_data_list[1:],columns=nest_data_list[0])
     return te_df
 
-def compute_stats(data, labels):
+def compute_stats(data, labels, type):
     data_combos = list(combinations(data,2))
     label_combos = list(combinations(labels,2))
-    stats_output = os.path.abspath(os.path.join(rundir, args.output+'_statistics.txt'))
+    stats_output = os.path.abspath(os.path.join(rundir, args.output+'_'+type+'_statistics.txt'))
     with open(stats_output, 'w') as stats_out:
         stats_out.write('dataset_1\tdataset_2\tP-value\n')
         for i in range(0, len(data_combos)):
             w, p = stats.mannwhitneyu(data_combos[i][0], data_combos[i][1], alternative = 'two-sided')
             stats_out.write('\t'.join(label_combos[i]) + '\t' + str(p) + '\n')
+        if len(data) >= 3: # try 3 samples and 4 samples. If error tell user to alter this section
+            try:
+                s, kw_p = stats.kruskal(data[0],data[1],data[2],data[3], nan_policy='omit')
+                stats_out.write('Krustal-Wallis\t' + str(kw_p) + '\n')
+            except:
+                try:
+                    s, kw_p = stats.kruskal(data[0],data[1],data[2], nan_policy='omit')
+                    stats_out.write('Krustal-Wallis\t' + str(kw_p) + '\n')
+                except:
+                    print('We took a guess and tried to run Krustal-Wallis with 3 or 4 annotations and tried to. '\
+                    'It appears we were wrong and you have more than four sample, to fix this alter lines 343 in '\
+                    'the script to support the number of samples you are trying to run statistics on')
 
 def create_boxplot(df, type):
     fig, ax = plt.subplots(figsize=(args.figsize[0],args.figsize[1]), dpi=args.dpi)
