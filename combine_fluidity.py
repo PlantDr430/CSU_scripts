@@ -13,7 +13,7 @@ class MyFormatter(argparse.RawTextHelpFormatter):
     def __init__(self, prog):
         super(MyFormatter, self).__init__(prog, max_help_position=48)
 parser = argparse.ArgumentParser(
-    usage='./%(prog)s [options] -i XXX_pangenome_fluidity.txt XXX_pangenome_fluidity.txt -o output_folder',
+    usage='./%(prog)s [options] -i XXX_fluidity.txt XXX_fluidity.txt -o output_folder',
     description = '''    Turns multiple outputs from genome_fluidity.py into a figure and pvalue matrix. 
     Make sure to attach a prefix "XXX_pangenome_fluidity.txt if you didn't already use the -p / --prefix 
     flag in the previous script, to be used in the legend''',
@@ -76,7 +76,7 @@ def parse_input_files(input_file):
     x_labels = np.array(df['Genomes_Sampled'])
     genome_count = x_labels[-1]
     x_len.append(genome_count)
-    variance = sqrt(df['Total_Variance'].iloc[len(df['Total_Variance'])-1])
+    variance = df['Total_Variance'].iloc[len(df['Total_Variance'])-1]
     fluid_all = df['Fluidity'].iloc[len(df['Fluidity'])-1]
     z_test_dict[legend_name] = [fluid_all,genome_count,variance]
     fluid_data = np.array([fluid_all for x in range(0,len(df['Fluidity']))])
@@ -97,13 +97,14 @@ def create_fluidity_figure(output_file):
     plt.grid(which='minor', axis='y', color='white', linestyle='--', alpha=0.3)
     ax.tick_params(axis='x', which='minor', bottom=False)
     ax.grid(which='major', linestyle='-', linewidth='1', color='white')
-    plt.xticks(np.arange(3, max(x_len) + 1, 1.0))
+    plt.xticks(np.arange(3, max(x_len) + 1, 1.0), fontsize=12)
     plt.xlim(3, max(x_len))
-    plt.xlabel('Number of genomes sampled')
-    plt.ylabel('Fluidity, '+u'\u03C6')
-    plt.legend(framealpha=1.0, prop={'size': args.legend})
+    plt.xlabel('Number of genomes sampled', fontsize=12)
+    plt.ylabel('Fluidity, '+u'\u03C6', fontsize=12)
+    plt.legend(framealpha=1.0, prop={'size': args.legend}, fontsize=12)
     plt.tight_layout()
-    plt.savefig(output_file)
+    # plt.savefig(output_file)
+    plt.show()
 
 def two_sample_z(X1, n1, var1, X2, n2, var2):
     '''
@@ -116,6 +117,10 @@ def two_sample_z(X1, n1, var1, X2, n2, var2):
     return pval
 
 def determine_significance_matrix(output_file):
+    '''Determine significane between fluidities through two-sided two-sample 
+    z-test with 1 degree of freedom (Kislyuk et al. 2011 and personal
+    communications with the corresponding author Joshua S Weitz).
+    '''
     sorted_dict = sorted(z_test_dict.items(), key=lambda x: x[1], reverse=True)
     result_matrix = []
     for i in range(0, len(sorted_dict)): # loop through isolates
@@ -134,7 +139,7 @@ def determine_significance_matrix(output_file):
             report.writerow(result_matrix[i])
 
 if __name__ == "__main__":
-    output_figure = os.path.abspath(os.path.join(rundir, args.output+'.png'))
+    output_figure = os.path.abspath(os.path.join(rundir, args.output+'.pdf'))
     output_pval_table = os.path.abspath(os.path.join(rundir, args.output+'_table.tsv'))
     for files in args.input:
         parse_input_files(files)
