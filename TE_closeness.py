@@ -30,6 +30,7 @@ import pandas as pd
 from scipy import stats
 from collections import OrderedDict
 from itertools import combinations
+from statsmodels.stats.multitest import multipletests
 import matplotlib.pyplot as plt
 
 rundir = os.getcwd()
@@ -82,6 +83,24 @@ parser.add_argument(
     metavar=''
 )
 parser.add_argument(
+    '-ma',
+    '--multialpha',
+    default = 0.05,
+    type=float,
+    help = 'Alpha cut off for multitest correction [default = 0.05]',
+    metavar=''
+)
+parser.add_argument(
+    '-multi',
+    '--multitest',
+    default='fdr_bh',
+    choices=['bonferroni', 'sidak', 'holm-sidak','holm','simes-hochberg','hommel',\
+        'fdr_bh','fdr_by','fdr_tsbh','fdr_tsbky'],
+    help = 'Multi-test correction to use [bonferroni|sidak|holm-sidak|holm|'\
+        'simes-hochberg|hommel|fdr_bh|fdr_by|fdr_tsbh|fdr_tsbky] [defaut: fdr_bh]',
+    metavar=''
+)
+parser.add_argument(
     '--figsize',
     nargs = '+',
     default = [6.4, 4.8],
@@ -113,7 +132,6 @@ def parse_gff3(input_gff3):
                 if col[2] == 'gene':
                     try: # check to make sure 9th columns contains ID= feautres to get gene names
                         gene_name = re.search(r'(ID=)([^;]*)', col[8]).group(2)
-                        
                         gene_list.append(gene_name)
                     except:
                         print('ERROR: Problem with gff3 file. Cannot find ID feautre for gene')
@@ -333,11 +351,16 @@ def compute_stats(data, labels, type):
     data_combos = list(combinations(data,2))
     label_combos = list(combinations(labels,2))
     stats_output = os.path.abspath(os.path.join(rundir, args.output+'_'+type+'_statistics.txt'))
+    uncor_p_list = []
     with open(stats_output, 'w') as stats_out:
         stats_out.write('dataset_1\tdataset_2\tP-value\n')
         for i in range(0, len(data_combos)):
             w, p = stats.mannwhitneyu(data_combos[i][0], data_combos[i][1], alternative = 'two-sided')
+            uncor_p_list.append(p)
             stats_out.write('\t'.join(label_combos[i]) + '\t' + str(p) + '\n')
+        r, c_p, sf, bf = multipletests(uncor_p_list, alpha=args.multialpha, method=args.multitest)
+        corrected_p = [str(p) for p in c_p]
+        stats_out.write('Corrected p-values in order as above:\n' + ','.join(corrected_p) + '\n')
         if len(data) >= 3: # try 3 samples and 4 samples. If error tell user to alter this section
             try:
                 s, kw_p = stats.kruskal(data[0],data[1],data[2],data[3], nan_policy='omit')
@@ -351,7 +374,7 @@ def compute_stats(data, labels, type):
                     'It appears we were wrong and you have more than four sample, to fix this alter lines 343 in '\
                     'the script to support the number of samples you are trying to run statistics on')
 
-def create_boxplot(df, type):
+def create_boxplot(df, type, outfile):
     fig, ax = plt.subplots(figsize=(args.figsize[0],args.figsize[1]), dpi=args.dpi)
 
     if args.te_list and not args.annotations:
@@ -361,7 +384,10 @@ def create_boxplot(df, type):
         data = np.column_stack(te_data)
         mask = ~np.isnan(data)
         filter_dist = [d[m] for d, m in zip(data.T, mask.T)]
-        compute_stats(filter_dist, x_data)
+        if type == 'distances':
+            compute_stats(filter_dist, x_data, 'distance')
+        elif type == 'counts':
+            compute_stats(filter_dist, x_data, 'counts')
     elif args.annotations and not args.te_list:
         x_data = list(set(df['Annotations']))
         colors = plt.cm.tab10([i for i in range(len(x_data))])
@@ -378,7 +404,10 @@ def create_boxplot(df, type):
         data = np.column_stack(appended_te_data)
         mask = ~np.isnan(data)
         filter_dist = [d[m] for d, m in zip(data.T, mask.T)]
-        compute_stats(filter_dist, x_data)
+        if type == 'distances':
+            compute_stats(filter_dist, x_data, 'distance')
+        elif type == 'counts':
+            compute_stats(filter_dist, x_data, 'counts')
     # elif args.annotations and args.te_list:
         # currently do not have support for this for figure creation yet
     else:
@@ -420,7 +449,7 @@ def create_boxplot(df, type):
     else:
         pass
     plt.tight_layout()
-    plt.savefig(distance_figure)
+    plt.savefig(outfile)
     plt.close()
     # plt.show()
 
@@ -454,6 +483,7 @@ if __name__ == "__main__":
             apath = os.path.abspath(os.path.join(rundir, file))
             anno_name = os.path.basename(apath).split('.')[0]
             with open(apath, 'r') as in_file:
+                # anno_list = [gene.strip().split('-T1')[0] for gene in in_file if gene != '\n']
                 anno_list = [gene.strip() for gene in in_file if gene != '\n']
                 gene_errors = [anno for anno in anno_list if anno not in gene_list]
                 filtered_gene_list = list(set(filtered_gene_list) - set(anno_list))
@@ -493,5 +523,5 @@ if __name__ == "__main__":
     te_dist_df.to_csv(distance_results, sep='\t', header=True, index=False)
     
     # Create figure
-    create_boxplot(te_count_df, 'counts')
-    create_boxplot(te_dist_df, 'distances')
+    create_boxplot(te_count_df, 'counts', count_figure)
+    create_boxplot(te_dist_df, 'distances', distance_figure)
