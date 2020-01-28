@@ -39,7 +39,7 @@ class MyFormatter(argparse.RawTextHelpFormatter):
 parser = argparse.ArgumentParser(
     usage='./%(prog)s [options] -i orthogroups -o output_folder',
     description = '''    Performs multiple bootstraps and calculates genome fluidity 
-    from a pangenome dataset.''',
+    from a pangenome dataset (orthogroups).''',
     
     epilog = """Written by Stephen A. Wyka (2019)""",
     formatter_class = MyFormatter)
@@ -99,13 +99,14 @@ else:
     sys.exit()
 
 if args.prefix:
-    fluid_results = os.path.abspath(os.path.join(result_dir, args.prefix+'_pangenome_fluidity.txt'))
-    fluid_fig = os.path.abspath(os.path.join(result_dir, args.prefix+'_pangenome_fluidity.png'))
+    fluid_results = os.path.abspath(os.path.join(result_dir, args.prefix+'_fluidity.txt'))
+    fluid_fig = os.path.abspath(os.path.join(result_dir, args.prefix+'_fluidity.png'))
 else:
     fluid_results = os.path.abspath(os.path.join(result_dir, 'Pangenome_fluidity.txt'))
     fluid_fig = os.path.abspath(os.path.join(result_dir, 'Pangenome_fluidity.png'))
 
 def create_ortho_dictionary(ortho_file): # create dictionary of gene clusters and isolates per cluster
+    '''Genereate dictionary of Orthogroups.'''
     print('Creating ortholog dictionary')
     ortho_isolates_dict = OrderedDict() # {Protein Cluster : list of isolates represented in cluster}
     with open(ortho_file, 'r') as infile:
@@ -125,6 +126,8 @@ def create_ortho_dictionary(ortho_file): # create dictionary of gene clusters an
     return ortho_isolates_dict
 
 def create_pair_dictionary(ortho_dictionary):
+    '''Create all possible unique pairs of isolates and get their unique 
+    sum gene clusters.'''
     print('Creating dictionary of paired ratio values')
     pair_dict = {} # {(Isolate1, Isolate2) : [ratio of sum(unique clusters)/sum(all clusters)]}
     for i in range(0, len(iso_list)):
@@ -151,9 +154,6 @@ def compute_fluidity_all_genomes():
     '''
     Computes the fluidity and variance for the pangenome in question from the max number 
     of genomes in the pangenome.
-    fluidity = 
-    fluidity_i =
-    fluidity_variance = 
     '''
     N = iso_num
     fluidity_list = [ratio for ratio in pair_dict.values()] # list of ratios 
@@ -267,7 +267,7 @@ def create_fluidity_results(figure_output, results_output):
     stderr_bottom = np.array([(pan_fluidity - v) for v in total_stderr])
     stderr_top = np.array([(pan_fluidity + v) for v in total_stderr])
     fig, ax = plt.subplots()
-    try: # Still got problems sometimes with fitting curves, this temporary solution seems to be working
+    try: # Still had problems sometimes with fitting curves, this solution works best for now
         geneticParameters_top = generate_Initial_Parameters(x_labels, stderr_top, exponential)
         geneticParameters_bottom = generate_Initial_Parameters(x_labels, stderr_bottom, exponential)
         popt_t, pcov = curve_fit(exponential, x_labels, stderr_top, geneticParameters_top, maxfev=10000)
