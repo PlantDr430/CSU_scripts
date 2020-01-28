@@ -37,21 +37,22 @@ Genus species   /full/path/to/fasta/file    Identifier for grouping
 
 
 Example:
-Species_1	/home/rip_analysis/Species_1_proteins.fasta	Clade_1
-Species_2	/home/rip_analysis/Species_2_proteins.fasta	Clade_2
-Species_3	/home/rip_analysis/Species_3_proteins.fasta	Clade_2
-Species_4	/home/rip_analysis/Species_4_proteins.fasta	Clade_2
-Species_5	/home/rip_analysis/Species_5_proteins.fasta	Clade_3
-Species_6	/home/rip_analysis/Species_6_proteins.fasta	Clade_3
+Species_1	/home/directory/Species_1_proteins.fasta	Clade_1
+Species_2	/home/directory/Species_2_proteins.fasta	Clade_2
+Species_3	/home/directory/Species_3_proteins.fasta	Clade_2
+Species_4	/home/directory/Species_4_proteins.fasta	Clade_2
+Species_5	/home/directory/Species_5_proteins.fasta	Clade_3
+Species_6	/home/directory/Species_6_proteins.fasta	Clade_3
 
 '''
 
-import os, sys, argparse, inspect, subprocess
+import os, sys, argparse, inspect, subprocess, re
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from mpl_toolkits.mplot3d import Axes3D
+from collections import OrderedDict
 
 rundir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(rundir)
@@ -258,11 +259,12 @@ if args.batch:
         for line in batch_linearr:
             if len(batch_linearr[0]) == 3: # if there are categories
                 categories.append(line[2])
-                input_tuples.append((line[0].replace(' ', '_'),line[1],line[2]))
+                input_tuples.append((line[0].replace(' ', '_'),os.path.join(currentdir,line[1]),line[2]))
             else: # if there are no categories
-                input_tuples.append((line[0].replace(' ', '_'),line[1]))
+                input_tuples.append((line[0].replace(' ', '_'),os.path.join(currentdir,line[1])))
     if categories:
-        input_tuples = sorted(input_tuples, key = lambda x: (x[2], x[0])) # sort to group categories
+        input_tuples = input_tuples
+        # input_tuples = sorted(input_tuples, key = lambda x: (x[2], x[0])) # sort to group categories
         categories = list(set(categories)) # get set list of all categories
 
 # create output folders and define pathsep
@@ -329,11 +331,113 @@ def perform_blast_search(n, fasta, final_species):
             for line in out_linearr:
                 if not line[0] == line[1]: # if query gene matches subject gene, skip
                     blast_dict[n].append(float(line[2])) # append % identify to dictionary
+
     elif os.path.getsize(blast_out) == 0:
         print('WARNING: The blast results for {} were blank, we are skipping this file'.format(n))
         # Since file is empty, do not append to final_species
+    return blast_out
+
+def get_counts_greater_80_percent(n, fasta, file):
+    '''This function was added specifically for Wyka et al. Submitted for which 
+    this script was written. It is provided here for clarity of data sharing but 
+    is turned off by default. Currently, this was a quick and dirty method to get total 
+    counts of gene pairs with >= 80% BLASTp identity and determine if those gene 
+    pairs are separeted by 0 genes (i.e. directly next to each other) or separated by 
+    5 or less genes. It conforms strictly to my file strucutre and is not robust to other 
+    data strucutres. However, this section can be made more robust if requested.
+    
+    Alternatively, you can alter your data to conform to these rules:
+    
+    1. First column of batch file should be Genus_species_strain
+    2. Parent directory of FASTA file for particualr strain should be named as the given "strain" (i.e. LM4)
+    3. Wihtin the LM4 parent directory there should be a GFF3 file named LM4.gff3
+    4. Gene names are ordered and labeled such that gene_001-mRNA is followed by gene_002-mRNA, which is 
+    followed by gene_003-mRNA on the genome and in the GFF3 file.
+    '''
+    all_80_dict[n] = []
+    contig_80_dict[n] = []
+    gene_list = []
+    count_next_to = 0
+    count_5_or_less = 0
+    with open(file, 'r') as b_out:
+        out_linearr = [line.strip().split('\t') for line in b_out]
+
+        iso = n.rsplit('_', 1)[1]+'.gff3' # get prefix of file name from 'strain' info provided in batch file
+        # i.e. Claviceps_purpurea_LM4 = LM4.gff3 which is located in the same folder as LM4_proteins.fasta
+        if iso == '20.1.gff3':
+            iso = 'Cpurp.gff3'
+        elif iso == '1980.gff3':
+            iso = 'Clfusi.gff3'
+        elif iso == '1481.gff3':
+            iso = 'Clpasp.gff3'
+        else:
+            iso = iso
+
+        gff_dict = OrderedDict() # {Gene_name : contig}
+        with open(os.path.join(os.path.dirname(fasta),iso), 'r') as in_gff3:
+            for gene in in_gff3:
+                if not gene.startswith('#'):
+                    col = gene.split('\t')
+                    if col[2] == 'gene':
+                        gene_name = re.search(r'(ID=)([^;]*)', col[8]).group(2)+'-T1'
+                        gff_dict[gene_name] = col[0]
+
+        for line in out_linearr:
+            if not line[0] == line[1]: # if query gene matches subject gene, skip
+                if float(line[2]) >= 80.00: # if blastp identify > 80%
+                    pair = (line[0],line[1])
+                    alt_pair = (line[1],line[0])
+                    if pair in all_80_dict[n] or alt_pair in all_80_dict[n]:
+                        pass
+                    else:
+                        all_80_dict[n] = all_80_dict[n] + [pair]
+                        # append genes to gene list to get unique gene number for later
+                        gene_list.append(pair[0])
+                        gene_list.append(pair[1])
+                #if genes are on the same contig and blastp identify > 80%
+                if gff_dict[line[0]] == gff_dict[line[1]] and float(line[2]) >= 80.00:
+                    pair = (line[0],line[1])
+                    alt_pair = (line[1],line[0])
+                    if pair in contig_80_dict[n] or alt_pair in contig_80_dict[n]:
+                        pass
+                    else:
+                        contig_80_dict[n] = contig_80_dict[n] + [pair]
+                        
+                        # Look to see if genes are next to each other or separeted by 5 or less genes. 
+                        # NOTE: this isn't that robust to different datasets, but it works here due 
+                        # to the fact that Funannotate adds locus tags in order. For example, gene_001 is 
+                        # always before gene_002 which is followed by gene_003. This can be confirmed 
+                        # via a GFF file. Therefore, if we know the genes are on the same contig, if 
+                        # we simple to 1 - 3 = 2 we know that the gene_001 and gene_003 are separeted 
+                        # by 1 gene (i.e. gene_002).
+                        # This splicing function is also specific to my data
+                        gene_1 = int(pair[0].split('_')[1].split('-')[0])
+                        gene_2 = int(pair[1].split('_')[1].split('-')[0])
+                        if abs(gene_1 - gene_2) == 1:
+                            count_next_to += 1
+                        if abs(gene_1 - gene_2) <= 6: # if 6 that means 5 genes separete them
+                            count_5_or_less += 1
+    
+    next_prop = round(((count_next_to/len(all_80_dict[n]))*100),2) # proportion of gene pairs separeted by 0 genes
+    five_prop = round(((count_5_or_less/len(all_80_dict[n]))*100),2) # proportion of gene pairs separeted by <=5 genes
+    uniq_genes = len(set(gene_list)) # number of unique genes from unique pairs
+
+    gene_80_counts_out = os.path.abspath(os.path.join(result_dir, 'Counts_genes_pairs_with_80_identity.txt'))
+    with open(gene_80_counts_out, 'a') as count_out:
+        count_out.write(n + ':\n')
+        count_out.write('Number of unique gene pairs with >= 80% identity = ' + 
+            str(len(all_80_dict[n])) + '\n')
+        count_out.write('Number of unique genes found in unique gene pairs = ' + 
+            str(uniq_genes) + '\n')
+        count_out.write('Number of these pairs that are separated by 0 genes = ' + 
+            str(count_next_to) + '(' + str(next_prop)+'%)' + '\n')
+        count_out.write('Number of these pairs that are separated by <= 5 genes = ' + 
+            str(count_5_or_less) + '(' + str(five_prop)+'%)' + '\n')
+
+    return all_80_dict
 
 def bin_data(n):
+    '''Bin % identities by closest rounded number'''
     bin_dict[n] = {i: 0 for i in range(0,101)}
     for percent_identity in blast_dict[n]:
         bin_dict[n][round(percent_identity)] += 1 # bin by rounding and get number in each bin
@@ -341,6 +445,7 @@ def bin_data(n):
         bin_dict[n][i] = bin_dict[n][i]/len(blast_dict[n]) # get proportion from genes used
 
 def dict_to_dataframe():
+    '''Convert dictionary to dataframe'''
     df = pd.DataFrame() # create blank dataframe
     count = 0
     for name in [name[0] for name in input_tuples]: # loop through each species and create dataframe
@@ -353,6 +458,7 @@ def dict_to_dataframe():
     return df
 
 def make_bar_graph():
+    '''Generate figure'''
     if args.input:
         fig, ax = plt.subplots(figsize=(args.figsize[0],args.figsize[1]), dpi=args.dpi)
         x_labels = np.array([i for i in range(0,101)])
@@ -376,6 +482,7 @@ def make_bar_graph():
                 colors = plt.cm.tab10([1.*i/len(categories) for i in range(len(categories))])
             else: # if <= 10 use more contrasting colors
                 colors = plt.cm.tab10([i for i in range(len(categories))])
+                # colors = ['tab:red', 'tab:blue', 'tab:green', 'tab:orange']
             color_nest = zip(categories, colors)
             color_dict = {nest[0] : nest[1] for nest in color_nest} # {categoty : color}
             for n, k, z in zip(input_tuples, y_ticks, data):
@@ -406,6 +513,7 @@ def make_bar_graph():
         ax.set_zlabel('Fraction of orthologs', fontsize=12)
         ax.view_init(elev=args.elev, azim=args.azim)
     ax.set_xlim((args.xlimits[0],args.xlimits[1]))
+    # plt.show()
     plt.savefig(figure_output)
     plt.close()
 
@@ -422,14 +530,23 @@ if __name__ == "__main__":
     # perform blast search(es)
     print('Performing blast searches')
     blast_dict = {}
-    final_species = [] # list of speices that had blast_results
+    # all_80_dict = {}
+    # contig_80_dict = {}
+    final_species = [] # list of species that had blast_results
     if args.batch:
         for tup in input_tuples:
-            perform_blast_search(tup[0], tup[1], final_species)
+            blast_out = perform_blast_search(tup[0], tup[1], final_species)
+            # get_counts_greater_80_percent(tup[0], tup[1], blast_out)
         if not len(input_tuples) == len(final_species): # double check to remove blank data
             input_tuples = [tup for tup in input_tuples if tup[0] in final_species]
     if args.input:
         perform_blast_search(name, input_fasta)
+
+    # print out unique gene pairs with >= 80% identity per strain
+    # this feature is turned off by default and was specific to a publication
+    # a_80_df = pd.DataFrame.from_dict(data=all_80_dict, orient='index').T
+    # df_80_out = os.path.abspath(os.path.join(result_dir, 'All_unique_gene_pairs_with_80_identity.tsv'))
+    # a_80_df.to_csv(df_80_out, sep='\t')
 
     # bin the data
     print('Binning data')
@@ -441,6 +558,7 @@ if __name__ == "__main__":
         bin_data(name)
 
     # create dataframe from bin_dict
+    print('Creating dataframe from binning dictionary')
     if args.batch:
         df = dict_to_dataframe()
     if args.input:
@@ -449,5 +567,6 @@ if __name__ == "__main__":
     df.to_csv(dataframe_output)
 
     # make figure
+    print('Creating figure')
     figure_output = os.path.abspath(os.path.join(result_dir, args.out+'.png'))
     make_bar_graph()
