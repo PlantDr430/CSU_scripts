@@ -477,7 +477,7 @@ if __name__ == "__main__":
 
     # Check that genes from annotation input match gene names found in gff3 or bed
     if args.annotations:
-        anno_dict = {} # {Annotation Name : [list of genes]}
+        anno_dict = OrderedDict() # {Annotation Name : [list of genes]}
         filtered_gene_list = gene_list.copy()
         for file in args.annotations:
             apath = os.path.abspath(os.path.join(rundir, file))
@@ -500,7 +500,7 @@ if __name__ == "__main__":
             for gene in genes:
                 if gene not in flipped_anno_dict.keys():
                     flipped_anno_dict[gene] = anno
-                else:
+                else: # This will also remove duplicates calls based on order of anno input
                     pass
 
     # Parse RepeatMasker output file
