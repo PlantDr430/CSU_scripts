@@ -401,7 +401,7 @@ def create_hexbin_plot():
     plt.close()
 
 def get_normal_distribution(values):
-    values = sorted(np.log(values)) # get natural logs of the values
+    values = sorted(np.log10(values)) # get log of the values
     mean = np.mean(values)
     std = np.std(values)
     lognorm_fit = stats.norm.pdf(values, loc=mean, scale=std) # get norm pdf
@@ -415,7 +415,14 @@ def create_normal_distribution_plots(axes):
     ax_norm_x.xaxis.set_tick_params(which='both', labelbottom = False, bottom = False, labelsize=14)
     ax_norm_y.yaxis.set_tick_params(which='both', labelleft = False, left = False, labelsize=14)
 
-    # filter lists to make sure we don't use data points that were positioned along axes (i.e. = 0)
+    # filter lists to make sure we don't use data points that were positioned along axes (i.e. = 0).
+    # These datapoints are either the 5' or 3' ends of a gene that are at the start or end of a contig
+    # so the true intergenic length is unknown so we cannot use that data. These data points can also
+    # come from genes that had an overlapping 5' and 3' end. Since they overlapped the intergenic length
+    # could be classified as 0, but depending on the quality of the genome assembly and annotation this
+    # could heavily bias results. While if overlap is generally low, removing these data points should not
+    # affect the overall results as the results will still be computed one thousands of genes.
+    # Up for debate.
     prime3_filt = [x for x in prime3_flank_no_over if x > args.xlimits[0]]
     prime5_filt = [x for x in prime5_flank_no_over if x > args.ylimits[0]]
     overlay_x_filt = [x for x in overlay_x if x > args.xlimits[0]]
