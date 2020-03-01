@@ -11,7 +11,7 @@ class MyFormatter(argparse.RawTextHelpFormatter):
         super(MyFormatter, self).__init__(prog, max_help_position=48)
 parser = argparse.ArgumentParser(
     usage='./%(prog)s [options] -in LTF_finder_output -o output.gff',
-    description = '''    ''',
+    description = '''Turns LTR_finder output into GFF3 format.''',
     
     epilog = """Written by Stephen A. Wyka (2020)""",
     formatter_class = MyFormatter)
