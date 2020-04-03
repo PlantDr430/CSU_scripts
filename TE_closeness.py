@@ -32,8 +32,10 @@ from collections import OrderedDict
 from itertools import combinations
 from statsmodels.stats.multitest import multipletests
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 
 rundir = os.getcwd()
+mpl.rc('font',family='Times New Roman')
 
 class MyFormatter(argparse.RawTextHelpFormatter):
     def __init__(self, prog):
@@ -65,6 +67,12 @@ parser.add_argument(
     '-l',
     '--te_list',
     help = 'File containing TE types of interest to separate out for bar graphs (one type per line).',
+    metavar=''
+)
+parser.add_argument(
+    '-t',
+    '--te_type',
+    help = 'One type of TE of interest to separate out for bar graphs (i.e. LTR).',
     metavar=''
 )
 parser.add_argument(
@@ -132,6 +140,7 @@ def parse_gff3(input_gff3):
                 if col[2] == 'gene':
                     try: # check to make sure 9th columns contains ID= feautres to get gene names
                         gene_name = re.search(r'(ID=)([^;]*)', col[8]).group(2)
+                        # gene_name = re.search(r'(ID=)([^;]*)', col[8]).group(2)+'-T1'
                         gene_list.append(gene_name)
                     except:
                         print('ERROR: Problem with gff3 file. Cannot find ID feautre for gene')
@@ -176,6 +185,9 @@ def parse_repeatmasker_out(repeat_infile):
     Example if no list is provided:
     This will exclude all simple and low complexity repeats
     repeatdict = {Contig_# : {'repeat' : [(start,stop),(start,stop)]}}
+    
+    If --te_type is used, dictionary will be set up as above with just 'repeat', but
+    will only include TE types of the specified type in the argument
     '''
     with open(repeat_infile, 'r') as infile:
         file_linearr = [line.strip().split() for line in infile][3:] # skip first 3 lines
@@ -193,10 +205,17 @@ def parse_repeatmasker_out(repeat_infile):
             else:
                 if 'simple_repeat' not in feat[10].lower():
                     if 'low_complexity' not in feat[10].lower():
-                        if 'repeat' in repeat_dict[feat[4]].keys():
-                            repeat_dict[feat[4]]['repeat'].append((int(feat[5]),int(feat[6])))
-                        else:
-                            repeat_dict[feat[4]]['repeat'] = [(int(feat[5]),int(feat[6]))]
+                        if args.te_type:
+                            if args.te_type.lower() in feat[10].lower():
+                                if 'repeat' in repeat_dict[feat[4]].keys():
+                                    repeat_dict[feat[4]]['repeat'].append((int(feat[5]),int(feat[6])))
+                                else:
+                                    repeat_dict[feat[4]]['repeat'] = [(int(feat[5]),int(feat[6]))]
+                            else:
+                                if 'repeat' in repeat_dict[feat[4]].keys():
+                                    repeat_dict[feat[4]]['repeat'].append((int(feat[5]),int(feat[6])))
+                                else:
+                                    repeat_dict[feat[4]]['repeat'] = [(int(feat[5]),int(feat[6]))]
                     else:
                         pass
                 else:
@@ -225,7 +244,7 @@ def look_for_closest_3_te(contig, te_type, ge_stop):
 
 def get_average_distance(flank_5, flank_3):
     '''
-    If a dist = 0 we can't be sure of distance, so best guess is to just use other distance
+    If a dist = 0 we can't be sure of distance, so best guess is to just use other distance as average
     '''
     if flank_5 == 0 and flank_3 != 0:
         avg_flank_te_dist = flank_3/1000
@@ -298,7 +317,7 @@ def compare_dictionaries():
                                 genes[g+1][0] > x[0] > genes[g][1]])
                             flank_3_dist = look_for_closest_3_te(contig, te_type, genes[g][1])
                             avg_flank_te_dist = get_average_distance(flank_5_dist, flank_3_dist)
-                            sum_flank_te = (flank_5_count + flank_3_count)/2
+                            sum_flank_te = (flank_5_count + flank_3_count)
                             gene_te_count_dict[gene_name][te_type] = sum_flank_te
                             gene_te_dist_dict[gene_name][te_type] = avg_flank_te_dist
         else:
@@ -326,11 +345,13 @@ def create_dataframe_from_dictionary(dictionary):
                 tmp_list.append(te_data[type_list[t]])
             nest_data_list.append(tmp_list)
         te_df = pd.DataFrame(nest_data_list[1:],columns=nest_data_list[0])
+
     elif args.annotations and not args.te_list:
         nest_data_list = [['gene_name'] + ['repeat'] + ['Annotations']]
         for gene, te_data in dictionary.items():
             nest_data_list.append([gene, te_data['repeat'], flipped_anno_dict[gene]])
         te_df = pd.DataFrame(nest_data_list[1:],columns=nest_data_list[0])
+
     elif args.annotations and args.te_list:
         nest_data_list = [['gene_name'] + type_list + ['Annotations']]
         for gene, te_data in dictionary.items():
@@ -340,11 +361,13 @@ def create_dataframe_from_dictionary(dictionary):
             tmp_list.append(flipped_anno_dict[gene])
             nest_data_list.append(tmp_list)
         te_df = pd.DataFrame(nest_data_list[1:],columns=nest_data_list[0])
+
     else:
         nest_data_list = [['gene_name'] + ['repeat']]
         for gene, te_data in dictionary.items():
             nest_data_list.append([gene, te_data['repeat']])
         te_df = pd.DataFrame(nest_data_list[1:],columns=nest_data_list[0])
+
     return te_df
 
 def compute_stats(data, labels, type):
@@ -376,9 +399,12 @@ def compute_stats(data, labels, type):
 
 def create_boxplot(df, type, outfile):
     fig, ax = plt.subplots(figsize=(args.figsize[0],args.figsize[1]), dpi=args.dpi)
+    # ax.set_aspect(0.06)
 
     if args.te_list and not args.annotations:
         x_data = type_list
+        # Or put in desired order here, names must match those in te_type list
+        # x_data = ['LTR', 'DNA', 'ETC'] 
         colors = plt.cm.tab10([i for i in range(len(x_data))])
         te_data = [df[te_type].tolist() for te_type in type_list]
         data = np.column_stack(te_data)
@@ -390,6 +416,8 @@ def create_boxplot(df, type, outfile):
             compute_stats(filter_dist, x_data, 'counts')
     elif args.annotations and not args.te_list:
         x_data = list(set(df['Annotations']))
+        # Or desired order, names must match names of annotation files (except Other Genes)
+        # x_data = ['Duplicates', 'Effectors', 'Other Genes']
         colors = plt.cm.tab10([i for i in range(len(x_data))])
         te_data = [df.loc[df['Annotations'] == x, 'repeat'].tolist() for x in x_data]
         max_length = max([len(x) for x in te_data])
@@ -415,13 +443,13 @@ def create_boxplot(df, type, outfile):
         colors = plt.cm.tab10([i for i in range(len(x_data))])
         te_data = df['repeat'].tolist()
         filter_dist = [x for x in te_data if str(x) != 'nan']
-    flierprops = dict(marker='.', markerfacecolor='black', markersize=2,linestyle='none')
+    flierprops = dict(marker='.', markerfacecolor='black', markersize=1,linestyle='none')
 
     ax.set_xticklabels(x_data, rotation=45)
     ax.set_axisbelow(True)
     plt.minorticks_on()
-    plt.grid(which='minor', axis='y', color='white', linestyle='--', alpha=0.3)
-    ax.yaxis.grid(True, linestyle='-', linewidth='1', which='major', color='white')
+    plt.grid(which='minor', axis='y', color='white', linestyle='--', alpha=0.3, linewidth='0.75')
+    ax.yaxis.grid(True, linestyle='-', linewidth='0.75', which='major', color='white')
     ax.tick_params(axis='x', which='minor', bottom=False)
     ax.set_facecolor('gainsboro')
     bp = plt.boxplot(filter_dist, '', patch_artist=True, flierprops=flierprops, widths=0.75)
@@ -435,8 +463,8 @@ def create_boxplot(df, type, outfile):
     if type == 'distances':
         plt.ylabel('Average distance to TE (kbp)')
     if type == 'counts':
-        plt.ylabel('Number of TEs')
-    ax.set_aspect(0.07)
+        plt.ylabel('Number of flanking TEs')
+    
     if args.title:
         if len(args.title.split(' ')) == 2:
             header = '$\it{}$ $\it{}$'.format(args.title.split(' ')[0], args.title.split(' ')[1])
@@ -448,16 +476,16 @@ def create_boxplot(df, type, outfile):
         plt.title(header)
     else:
         pass
-    plt.tight_layout()
-    plt.savefig(outfile)
+    # plt.tight_layout()
+    plt.savefig(outfile, bbox_inches = 'tight')
     plt.close()
     # plt.show()
 
 if __name__ == "__main__":
     # Get set up
     input_file = os.path.abspath(args.input)
-    count_figure = os.path.abspath(os.path.join(rundir, args.output+'_sum_counts.png'))
-    distance_figure = os.path.abspath(os.path.join(rundir, args.output+'_kbp_distances.png'))
+    count_figure = os.path.abspath(os.path.join(rundir, args.output+'_sum_counts.pdf'))
+    distance_figure = os.path.abspath(os.path.join(rundir, args.output+'_kbp_distances.pdf'))
     count_results = os.path.abspath(os.path.join(rundir, args.output+'_sum_count_results.tsv'))
     distance_results = os.path.abspath(os.path.join(rundir, args.output+'_kbp_distance_results.tsv'))
     if args.te_list:
