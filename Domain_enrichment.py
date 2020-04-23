@@ -37,10 +37,6 @@ OG0007165	IPR027443,IPR026992,IPR005123
 
 '''
 
-
-
-
-
 import os, sys, re, argparse
 import pandas as pd
 import numpy as np
@@ -57,7 +53,7 @@ class MyFormatter(argparse.RawTextHelpFormatter):
 parser = argparse.ArgumentParser(
     usage='./%(prog)s [options] -p population -s study -a association -o output',
     description = '''    Simple enrichment analysis using fishcer exact test 
-    and multi-test corrction.''',
+    and multi-test corrctions.''',
     
     epilog = """Written by Stephen A. Wyka (2020)""",
     formatter_class = MyFormatter)
@@ -106,16 +102,6 @@ parser.add_argument(
     help = 'Alpha cut off for multitest correction [default = 0.05]',
     metavar=''
 )
-parser.add_argument(
-    '-multi',
-    '--multitest',
-    default='fdr_bh',
-    choices=['bonferroni', 'sidak', 'holm-sidak','holm','simes-hochberg','hommel',\
-        'fdr_bh','fdr_by','fdr_tsbh','fdr_tsbky'],
-    help = 'Multi-test correction to use [bonferroni|sidak|holm-sidak|holm|'\
-        'simes-hochberg|hommel|fdr_bh|fdr_by|fdr_tsbh|fdr_tsbky] [defaut: fdr_bh]',
-    metavar=''
-)
 args=parser.parse_args()
 
 def flatten(lis):
@@ -139,12 +125,14 @@ def create_association_dict(filename):
                     assoc_dict[funcs[0]].append(cluster)
                 else:
                     assoc_dict[funcs[0]] = [cluster]
+                assoc_dict[funcs[0]] = list(set(assoc_dict[funcs[0]]))
             else:
                 for i in range(0,len(funcs)):
                     if funcs[i] in assoc_dict.keys():
                         assoc_dict[funcs[i]].append(cluster)
                     else:
                         assoc_dict[funcs[i]] = [cluster]
+                    assoc_dict[funcs[i]] = list(set(assoc_dict[funcs[i]]))
         else:
             pass
     return assoc_dict
@@ -182,20 +170,29 @@ def run_fischers_test(r_dict,a_dict):
                 tmp_dict[func] = ['p','{}/{}'.format(r[0][0],r[0][1]),
                 '{}/{}'.format(r[1][0],r[1][1]), str(p)]
     if uncorr_p_list:
-        r, c_p, aS, aB = multipletests(uncorr_p_list, alpha=args.multialpha, method=args.multitest, is_sorted=False, returnsorted=False)
+        corr_p_list = run_multitest_correction(uncorr_p_list)
         results_dict = {}
         count = -1
         for func, results in tmp_dict.items():
             count += 1
-            if c_p[count] <= args.multialpha:
-                new_line = list(flatten(results + [str(c_p[count])])) + [','.join([x for x in a_dict[func] if x in study])]
+            if corr_p_list[count] <= args.multialpha:
+                new_line = list(flatten(results + [str(corr_p_list[count])])) + [','.join([x for x in a_dict[func] if x in study])]
                 results_dict[func] = new_line
             else:
                 pass
+
     else:
         results_dict = {}
-        print('We did not find any signficiant enrichment or purification.')
+        print('We did not find any signficiant enrichment or purification for {}.'.format(args.out))
     return results_dict
+
+def run_multitest_correction(uncorr_list):
+    r, p_b, aS, aB = multipletests(uncorr_list, alpha=args.multialpha, method='bonferroni', is_sorted=False, returnsorted=False)
+    r, p_f, aS, aB = multipletests(uncorr_list, alpha=args.multialpha, method='fdr_bh', is_sorted=False, returnsorted=False)
+    avg_list = []
+    for i in range(0, len(uncorr_list)):
+        avg_list.append(np.mean([p_b[i],p_f[i]]))
+    return avg_list
 
 def write_out_results(dict, filename):
     outfile = os.path.abspath(os.path.join(rundir, filename))
@@ -214,5 +211,5 @@ if __name__ == "__main__":
     assoc_dict = create_association_dict(args.association)
     ratio_dict = get_ratios(assoc_dict, pop, study)
     results_dict = run_fischers_test(ratio_dict, assoc_dict)
-    write_out_results(results_dict, output+'.csv')
+    write_out_results(results_dict, output+'.tsv')
 
