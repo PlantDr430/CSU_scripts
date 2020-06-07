@@ -228,7 +228,7 @@ for d in dirs:
     if not os.path.isdir(d):
         os.makedirs(d)
 
-make sure LDhat and LDhot (if called) programs are callable from $PATH
+#make sure LDhat and LDhot (if called) programs are callable from $PATH
 try:
     if which_path('complete'):
         COMPLETE = 'complete'
